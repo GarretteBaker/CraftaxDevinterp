@@ -1,3 +1,4 @@
+#%%
 import os
 import pathlib
 from enum import Enum
@@ -9,15 +10,17 @@ from craftax.craftax.util.maths_utils import get_distance_map
 from craftax.environment_base.util import load_compressed_pickle, save_compressed_pickle
 
 # GAME CONSTANTS
-OBS_DIM = (9, 11)
+OBS_DIM = (49, 49)
 assert OBS_DIM[0] % 2 == 1 and OBS_DIM[1] % 2 == 1
 MAX_OBS_DIM = max(OBS_DIM)
-BLOCK_PIXEL_SIZE_HUMAN = 64
-BLOCK_PIXEL_SIZE_IMG = 16
+# BLOCK_PIXEL_SIZE_HUMAN = 64
+BLOCK_PIXEL_SIZE_HUMAN = 7
+# BLOCK_PIXEL_SIZE_IMG = 16
+BLOCK_PIXEL_SIZE_IMG = 7
 BLOCK_PIXEL_SIZE_AGENT = 7
 INVENTORY_OBS_HEIGHT = 4
 TEXTURE_CACHE_FILE = os.path.join(
-    pathlib.Path(__file__).parent.resolve(), "assets", "texture_cache.pbz2"
+    pathlib.Path(__file__).parent.resolve(), "assets", "full_view_texture_cache.pbz2"
 )
 
 # ENUMS
@@ -1110,7 +1113,7 @@ def load_all_textures(block_pixel_size):
         "int_texture": int_texture,
     }
 
-
+#%%
 if os.path.exists(TEXTURE_CACHE_FILE) and not os.environ.get(
     "CRAFTAX_RELOAD_TEXTURES", False
 ):
@@ -1123,5 +1126,6 @@ else:
         BLOCK_PIXEL_SIZE_IMG: load_all_textures(BLOCK_PIXEL_SIZE_IMG),
         BLOCK_PIXEL_SIZE_HUMAN: load_all_textures(BLOCK_PIXEL_SIZE_HUMAN),
     }
+    print("Saving processed textures")
     save_compressed_pickle(TEXTURE_CACHE_FILE, TEXTURES)
     print("Textures saved to cache")

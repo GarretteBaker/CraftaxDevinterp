@@ -20,7 +20,7 @@ obs, state = env.reset(rngs[0], env_params)
 import jax
 from functools import partial
 
-from craftax.craftax.constants import *
+from craftax.craftax.full_view_constants import *
 from craftax.craftax.craftax_state import EnvState
 from craftax.craftax.util.game_logic_utils import is_boss_vulnerable
 import matplotlib.pyplot as plt
@@ -724,6 +724,6 @@ def render_craftax_pixels(state, block_pixel_size, do_night_noise=True):
 
     return pixels
 
-pixels = render_craftax_pixels(state, 64)/256
+pixels = render_craftax_pixels(state, 7)/256
 plt.imshow(pixels)
 #%%
