@@ -783,7 +783,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use_wandb", action=argparse.BooleanOptionalAction, default=True
     )
-    parser.add_argument("--save_policy", type=bool, default=True)
+    parser.add_argument("--save_policy", action="store_true")
     parser.add_argument("--num_repeats", type=int, default=1)
     parser.add_argument("--layer_size", type=int, default=512)
     parser.add_argument("--wandb_project", type=str)
@@ -809,7 +809,7 @@ if __name__ == "__main__":
     parser.add_argument("--e3b_lambda", type=float, default=0.1)
 
     # ESSENTIAL DYNAMICS
-    parser.add_argument("--get_projections", type=bool, default=False)
+    parser.add_argument("--get_projections", action='store_true')
 
     args, rest_args = parser.parse_known_args(sys.argv[1:])
     if rest_args:
