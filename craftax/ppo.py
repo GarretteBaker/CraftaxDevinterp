@@ -10,6 +10,7 @@ import optax
 import wandb
 from typing import NamedTuple
 
+from flax.training import checkpoints
 from flax.training import orbax_utils
 from flax.training.train_state import TrainState
 from orbax.checkpoint import (
@@ -17,6 +18,7 @@ from orbax.checkpoint import (
     CheckpointManagerOptions,
     CheckpointManager,
 )
+import orbax.checkpoint as ocp
 
 from craftax.logz.batch_logging import batch_log, create_log_dict
 from craftax.models.actor_critic import (
@@ -31,6 +33,7 @@ from craftax.environment_base.wrappers import (
     BatchEnvWrapper,
 )
 
+import pickle
 
 class Transition(NamedTuple):
     done: jnp.ndarray
@@ -44,6 +47,9 @@ class Transition(NamedTuple):
     next_obs: jnp.ndarray
     info: jnp.ndarray
 
+class MetricObs(NamedTuple):
+    metric: jnp.ndarray
+    obses: jnp.ndarray
 
 def make_train(config):
     config["NUM_UPDATES"] = (
@@ -447,7 +453,11 @@ def make_train(config):
                     targets,
                     rng,
                 )
-                return update_state, losses
+                if config["GET_PROJECTIONS"]:
+                    projection_of_model_function = network.apply(train_state.params, config["standard_obses_to_project_to"])[0].logits
+                    return update_state, projection_of_model_function
+                else:
+                    return update_state, losses
 
             update_state = (
                 train_state,
@@ -456,9 +466,14 @@ def make_train(config):
                 targets,
                 rng,
             )
-            update_state, loss_info = jax.lax.scan(
-                _update_epoch, update_state, None, config["UPDATE_EPOCHS"]
-            )
+            if config["GET_PROJECTIONS"]:
+                update_state, projection_of_model_function = jax.lax.scan(
+                    _update_epoch, update_state, None, config["UPDATE_EPOCHS"]
+                )
+            else:
+                update_state, loss_info = jax.lax.scan(
+                    _update_epoch, update_state, None, config["UPDATE_EPOCHS"]
+                )
 
             train_state = update_state[0]
             metric = jax.tree_map(
@@ -466,6 +481,8 @@ def make_train(config):
                 / traj_batch.info["returned_episode"].sum(),
                 traj_batch.info,
             )
+            if config["GET_PROJECTIONS"]:
+                metric_obs = MetricObs(metric, projection_of_model_function)
 
             rng = update_state[-1]
 
@@ -615,7 +632,10 @@ def make_train(config):
                 rng,
                 update_step + 1,
             )
-            return runner_state, metric
+            if config["GET_PROJECTIONS"]:
+                return runner_state, metric_obs
+            else:
+                return runner_state, metric
 
         rng, _rng = jax.random.split(rng)
         runner_state = (
@@ -626,16 +646,43 @@ def make_train(config):
             _rng,
             0,
         )
-        runner_state, metric = jax.lax.scan(
+
+        # metric = 0
+        # _update_step_jit = jax.jit(_update_step)
+        # print(config["NUM_UPDATES"])
+        # for update_no in range(int(config["NUM_UPDATES"])):
+        #     runner_state, metric = _update_step_jit(runner_state, metric)
+            # os.makedirs(f"models", exist_ok=True)
+            # checkpoints.save_checkpoint(
+            #     ckpt_dir = f"/root/Craftax/models/", 
+            #     target = runner_state[0].params, 
+            #     step=update_no,
+            #     prefix = "model_", 
+            #     overwrite=True
+            # )
+            # artifact = wandb.Artifact(f"model_{update_no}", type="model")
+            # artifact.add_dir(f"/root/Craftax/models/model_{update_no}")
+            # wandb.log_artifact(artifact)
+
+        runner_state, metric_obs = jax.lax.scan(
             _update_step, runner_state, None, config["NUM_UPDATES"]
         )
-        return {"runner_state": runner_state}  # , "info": metric}
+        if config["GET_PROJECTIONS"]: projected_policies = metric_obs.obses
+        if config["GET_PROJECTIONS"]:
+            return {"runner_state": runner_state, "projected_policies": projected_policies}  # , "info": metric}
+        else: return {"runner_state": runner_state}
 
     return train
 
 
 def run_ppo(config):
     config = {k.upper(): v for k, v in config.__dict__.items()}
+    if config["GET_PROJECTIONS"]:
+        end_data_dir = "/workspace/Craftax/craftax/end_data"
+        with open(f"{end_data_dir}/end_data.pkl", "rb") as f:
+            standard_obses_to_project_to = pickle.load(f)
+        standard_obses_to_project_to = jax.device_put(standard_obses_to_project_to)
+        config["standard_obses_to_project_to"] = standard_obses_to_project_to
 
     if config["USE_WANDB"]:
         wandb.init(
@@ -657,6 +704,11 @@ def run_ppo(config):
     t0 = time.time()
     out = train_vmap(rngs)
     t1 = time.time()
+    # t0 = time.time()
+    # train = make_train(config)
+    # out = train(rng)
+    # t1 = time.time()
+
     print("Time to run experiment", t1 - t0)
     print("SPS: ", config["TOTAL_TIMESTEPS"] / (t1 - t0))
     # t1 = time.time()
@@ -681,20 +733,23 @@ def run_ppo(config):
         def _save_network(rs_index, dir_name):
             train_states = out["runner_state"][rs_index]
             train_state = jax.tree_map(lambda x: x[0], train_states)
-            orbax_checkpointer = PyTreeCheckpointer()
-            options = CheckpointManagerOptions(max_to_keep=1, create=True)
-            path = os.path.join(wandb.run.dir, dir_name)
-            checkpoint_manager = CheckpointManager(path, orbax_checkpointer, options)
-            print(f"saved runner state to {path}")
-            save_args = orbax_utils.save_args_from_target(train_state)
-            checkpoint_manager.save(
-                config["TOTAL_TIMESTEPS"],
-                train_state,
-                save_kwargs={"save_args": save_args},
-            )
+            path = ocp.test_utils.erase_and_create_empty("/workspace/Craftax/end_model/")
+            checkpoint_name = f"model_{time.time()}"
+            checkpointer = ocp.StandardCheckpointer()
+            checkpointer.save(path / checkpoint_name, train_state)
+
+        def _save_projected_policies(dir_name):
+            os.makedirs(dir_name, exist_ok=True)
+            projected_policies = out["projected_policies"]
+            projected_policies = jax.device_get(projected_policies)
+            with open(f"{dir_name}/projected_policies.pkl", "wb") as f:
+                pickle.dump(projected_policies, f)
 
         if config["SAVE_POLICY"]:
             _save_network(0, "policies")
+
+        if config["GET_PROJECTIONS"]:
+            _save_projected_policies("/workspace/Craftax/projected_policies")
 
 
 if __name__ == "__main__":
@@ -706,7 +761,7 @@ if __name__ == "__main__":
         default=1024,
     )
     parser.add_argument(
-        "--total_timesteps", type=lambda x: int(float(x)), default=1e9
+        "--total_timesteps", type=lambda x: int(float(x)), default=1e6
     )  # Allow scientific notation
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--num_steps", type=int, default=64)
@@ -728,7 +783,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use_wandb", action=argparse.BooleanOptionalAction, default=True
     )
-    parser.add_argument("--save_policy", action="store_true")
+    parser.add_argument("--save_policy", type=bool, default=True)
     parser.add_argument("--num_repeats", type=int, default=1)
     parser.add_argument("--layer_size", type=int, default=512)
     parser.add_argument("--wandb_project", type=str)
@@ -753,6 +808,9 @@ if __name__ == "__main__":
     parser.add_argument("--use_e3b", action="store_true")
     parser.add_argument("--e3b_lambda", type=float, default=0.1)
 
+    # ESSENTIAL DYNAMICS
+    parser.add_argument("--get_projections", type=bool, default=False)
+
     args, rest_args = parser.parse_known_args(sys.argv[1:])
     if rest_args:
         raise ValueError(f"Unknown args {rest_args}")
@@ -761,7 +819,7 @@ if __name__ == "__main__":
         assert args.train_icm
         assert args.icm_reward_coeff == 0
     if args.seed is None:
-        args.seed = np.random.randint(2**31)
+        args.seed = 0
 
     if args.jit:
         run_ppo(args)
