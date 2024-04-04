@@ -766,7 +766,6 @@ def run_ppo(config):
             # jax.tree_map(lambda x: print(x.shape), train_states)
             for checkpoint_num in range(num_checkpoints):
                 train_state = jax.tree_map(lambda x: x[0, checkpoint_num, ...], train_states)
-                print(train_state["params"]["Dense_0"]["kernel"].shape)
                 os.makedirs(f"{dir_name}/checkpoint_{checkpoint_num}", exist_ok=True)
                 path = ocp.test_utils.erase_and_create_empty(f"{dir_name}/checkpoint_{checkpoint_num}")
                 checkpoint_name = f"model_{checkpoint_num}"
