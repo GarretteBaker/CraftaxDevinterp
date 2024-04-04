@@ -652,31 +652,24 @@ def make_train(config):
             0,
         )
 
-        # metric = 0
-        # _update_step_jit = jax.jit(_update_step)
-        # print(config["NUM_UPDATES"])
-        # for update_no in range(int(config["NUM_UPDATES"])):
-        #     runner_state, metric = _update_step_jit(runner_state, metric)
-            # os.makedirs(f"models", exist_ok=True)
-            # checkpoints.save_checkpoint(
-            #     ckpt_dir = f"/root/Craftax/models/", 
-            #     target = runner_state[0].params, 
-            #     step=update_no,
-            #     prefix = "model_", 
-            #     overwrite=True
-            # )
-            # artifact = wandb.Artifact(f"model_{update_no}", type="model")
-            # artifact.add_dir(f"/root/Craftax/models/model_{update_no}")
-            # wandb.log_artifact(artifact)
-
-        runner_state, metric_obs = jax.lax.scan(
-            _update_step, runner_state, None, config["NUM_UPDATES"]
-        )
+        if config["SAVE_TRAJ"]:
+            metric = 0
+            _update_step_jit = jax.jit(_update_step)
+            for update_no in range(int(config["NUM_UPDATES"])):
+                runner_state, single_metric_obs = _update_step_jit(runner_state, metric)
+                trajectory = single_metric_obs.traj
+                os.makedirs(f"/workspace/CraftaxDevinterp/intermediate", exist_ok=True)
+                train_state = jax.tree_map(lambda x: x[0], trajectory)
+                path = ocp.test_utils.erase_and_create_empty("/workspace/CraftaxDevinterp/intermediate")
+                checkpoint_name = f"model_{update_no}"
+                checkpointer = ocp.StandardCheckpointer()
+                checkpointer.save(path / checkpoint_name, train_state)
+        else:
+            runner_state, metric_obs = jax.lax.scan(
+                _update_step, runner_state, None, config["NUM_UPDATES"]
+            )
         return_dict = dict()
         return_dict["runner_state"] = runner_state
-        if config["SAVE_TRAJ"]:
-            traj = metric_obs.traj
-            return_dict["trajectory"] = traj
         if config["GET_PROJECTIONS"]: 
             projected_policies = metric_obs.obses
             return_dict["projected_policies"] = projected_policies
@@ -709,22 +702,24 @@ def run_ppo(config):
     rng = jax.random.PRNGKey(config["SEED"])
     rngs = jax.random.split(rng, config["NUM_REPEATS"])
 
-    train_jit = jax.jit(make_train(config))
-    train_vmap = jax.vmap(train_jit)
+    if config["SAVE_TRAJ"]:
+        t0 = time.time()
+        train = make_train(config)
+        out = train(rng)
+        t1 = time.time()
+    else:
+        train_jit = jax.jit(make_train(config))
+        train_vmap = jax.vmap(train_jit)
 
-    t0 = time.time()
-    out = train_vmap(rngs)
-    t1 = time.time()
-    # t0 = time.time()
-    # train = make_train(config)
-    # out = train(rng)
-    # t1 = time.time()
+        t0 = time.time()
+        out = train_vmap(rngs)
+        t1 = time.time()
 
     print("Time to run experiment", t1 - t0)
     print("SPS: ", config["TOTAL_TIMESTEPS"] / (t1 - t0))
-    ob = out["trajectory"]["params"]["Dense_0"]["kernel"]
-    print(type(ob))
-    print(ob.shape)
+    # ob = out["trajectory"]["params"]["Dense_0"]["kernel"]
+    # print(type(ob))
+    # print(ob.shape)
     
     # t1 = time.time()
     # out = train_vmap(rngs)
@@ -779,10 +774,6 @@ def run_ppo(config):
 
         if config["GET_PROJECTIONS"]:
             _save_projected_policies("/workspace/Craftax/projected_policies")
-
-        if config["SAVE_TRAJ"]:
-            _save_intermediate_networks("/workspace/CraftaxDevinterp/intermediate")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
