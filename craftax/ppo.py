@@ -48,8 +48,9 @@ class Transition(NamedTuple):
     info: jnp.ndarray
 
 class MetricObs(NamedTuple):
-    metric: jnp.ndarray
-    obses: jnp.ndarray
+    metric: jnp.ndarray = jnp.array([])
+    obses: jnp.ndarray = jnp.array([])
+    traj: jnp.ndarray = jnp.array([])
 
 def make_train(config):
     config["NUM_UPDATES"] = (
@@ -482,7 +483,14 @@ def make_train(config):
                 traj_batch.info,
             )
             if config["GET_PROJECTIONS"]:
-                metric_obs = MetricObs(metric, projection_of_model_function)
+                obses = projection_of_model_function
+            else:
+                obses = jnp.array([])
+            if config["SAVE_TRAJ"]:
+                traj = update_state[0].params
+            else:
+                traj = jnp.array([])
+            metric_obs = MetricObs(metric=metric, obses=obses, traj=traj)
 
             rng = update_state[-1]
 
@@ -632,10 +640,7 @@ def make_train(config):
                 rng,
                 update_step + 1,
             )
-            if config["GET_PROJECTIONS"]:
-                return runner_state, metric_obs
-            else:
-                return runner_state, metric
+            return runner_state, metric_obs
 
         rng, _rng = jax.random.split(rng)
         runner_state = (
@@ -667,10 +672,16 @@ def make_train(config):
         runner_state, metric_obs = jax.lax.scan(
             _update_step, runner_state, None, config["NUM_UPDATES"]
         )
-        if config["GET_PROJECTIONS"]: projected_policies = metric_obs.obses
-        if config["GET_PROJECTIONS"]:
-            return {"runner_state": runner_state, "projected_policies": projected_policies}  # , "info": metric}
-        else: return {"runner_state": runner_state}
+        return_dict = dict()
+        return_dict["runner_state"] = runner_state
+        if config["SAVE_TRAJ"]:
+            traj = metric_obs.traj
+            return_dict["trajectory"] = traj
+        if config["GET_PROJECTIONS"]: 
+            projected_policies = metric_obs.obses
+            return_dict["projected_policies"] = projected_policies
+
+        return return_dict
 
     return train
 
@@ -711,6 +722,10 @@ def run_ppo(config):
 
     print("Time to run experiment", t1 - t0)
     print("SPS: ", config["TOTAL_TIMESTEPS"] / (t1 - t0))
+    ob = out["trajectory"]["params"]["Dense_0"]["kernel"]
+    print(type(ob))
+    print(ob.shape)
+    
     # t1 = time.time()
     # out = train_vmap(rngs)
     # t2 = time.time()
@@ -745,11 +760,27 @@ def run_ppo(config):
             with open(f"{dir_name}/projected_policies.pkl", "wb") as f:
                 pickle.dump(projected_policies, f)
 
+        def _save_intermediate_networks(dir_name):
+            train_states = out["trajectory"]
+            num_checkpoints = train_states["params"]["Dense_0"]["kernel"].shape[1]
+            for checkpoint_num in range(num_checkpoints):
+                train_state = jax.tree_map(lambda x: x[checkpoint_num, :, :], train_states)
+                print(train_state["params"]["Dense_0"]["kernel"].shape)
+                os.makedirs(f"{dir_name}/checkpoint_{checkpoint_num}", exist_ok=True)
+                path = ocp.test_utils.erase_and_create_empty(f"{dir_name}/checkpoint_{checkpoint_num}")
+                checkpoint_name = f"model_{checkpoint_num}"
+                checkpointer = ocp.StandardCheckpointer()
+                checkpointer.save(path / checkpoint_name, train_state)
+
+
         if config["SAVE_POLICY"]:
             _save_network(0, "policies")
 
         if config["GET_PROJECTIONS"]:
             _save_projected_policies("/workspace/Craftax/projected_policies")
+
+        if config["SAVE_TRAJ"]:
+            _save_intermediate_networks("/workspace/CraftaxDevinterp/intermediate")
 
 
 if __name__ == "__main__":
@@ -810,6 +841,9 @@ if __name__ == "__main__":
 
     # ESSENTIAL DYNAMICS
     parser.add_argument("--get_projections", action='store_true')
+
+    # DEV INTERP
+    parser.add_argument("--save_traj", action="store_true")
 
     args, rest_args = parser.parse_known_args(sys.argv[1:])
     if rest_args:
