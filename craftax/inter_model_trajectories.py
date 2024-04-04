@@ -20,6 +20,7 @@ from craftax.craftax.full_view_constants import *
 from craftax.craftax.craftax_state import EnvState
 from craftax.craftax.util.game_logic_utils import is_boss_vulnerable
 import matplotlib.pyplot as plt
+import pickle
 
 
 #%%
@@ -88,7 +89,7 @@ def generate_trajectory(network_params, rng, num_envs=1, num_steps=496):
     return traj_batch.state
 
 jit_gen_traj = jax.jit(generate_trajectory)
-
+#%%
 def render_craftax_pixels(state, do_night_noise=True):
     block_pixel_size = 7
     textures = TEXTURES[block_pixel_size]
@@ -103,7 +104,7 @@ def render_craftax_pixels(state, do_night_noise=True):
         constant_values=BlockType.OUT_OF_BOUNDS.value,
     )
 
-    tl_corner = state.player_position - obs_dim_array // 2 + MAX_OBS_DIM + 2
+    tl_corner = jnp.array([24, 24]) - obs_dim_array // 2 + MAX_OBS_DIM + 2
 
     map_view = jax.lax.dynamic_slice(padded_grid, tl_corner, OBS_DIM)
 
@@ -196,11 +197,20 @@ def render_craftax_pixels(state, do_night_noise=True):
     player_texture_index = jax.lax.select(
         state.is_sleeping, 4, state.player_direction - 1
     )
-    map_pixels = (
-        map_pixels
-        * (1 - textures["full_map_player_textures_alpha"][player_texture_index])
-        + textures["full_map_player_textures"][player_texture_index]
-        * textures["full_map_player_textures_alpha"][player_texture_index]
+    # map_pixels = (
+    #     map_pixels
+    #     * (1 - textures["full_map_player_textures_alpha"][player_texture_index])
+    #     + textures["full_map_player_textures"][player_texture_index]
+    #     * textures["full_map_player_textures_alpha"][player_texture_index]
+    # )
+    map_pixels = jax.lax.dynamic_update_slice(
+        map_pixels, 
+        jnp.float32(textures["player_textures"][0][:, :, :3]), 
+        (
+            jnp.int32(state.player_position[0] * block_pixel_size), 
+            jnp.int32(state.player_position[1] * block_pixel_size), 
+            jnp.int32(0)
+        )
     )
 
     # Render mobs
@@ -799,13 +809,159 @@ for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progr
     network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
     trajectory = jit_gen_traj(network_params, _rng)
-    os.makedirs(f"/workspace/CraftaxDevinterp/frames/trajectory_{trajectory_no}", exist_ok=True)
+    os.makedirs(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}", exist_ok=True)
     for frame in tqdm(range(200), desc="Frame progress"):
         state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
         pixels = _jitted_render_pixels(state)/256
-        plt.imshow(pixels)
-        plt.savefig(f"/workspace/CraftaxDevinterp/frames/trajectory_{trajectory_no}/frame_{frame}.png")
-        plt.close()
+        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
+            pickle.dump(pixels, f)
+        
 #%%
-textures = TEXTURES[7]
+import numpy as np
+num_frames = 200
+import numpy as np
+
+def rgb_to_yiq(rgb):
+    """
+    Convert an RGB image to the YIQ color space.
+    Assumes the input RGB image has shape (n, m, 3).
+    """
+    matrix = np.array([
+        [0.299, 0.587, 0.114],
+        [0.59590059, -0.27455667, -0.32134392],
+        [0.21153661, -0.52273617, 0.31119955]
+    ])
+    # Apply the transformation matrix to the last dimension (color channels)
+    return np.tensordot(rgb, matrix, axes=([-1], [1]))
+
+def yiq_to_rgb(yiq):
+    """
+    Convert a YIQ image back to the RGB color space.
+    Assumes the input YIQ image has shape (n, m, 3).
+    """
+    matrix = np.array([
+        [1.0, 0.956, 0.621],
+        [1.0, -0.272, -0.647],
+        [1.0, -1.106, 1.703]
+    ])
+    # Apply the inverse transformation matrix to the last dimension
+    rgb = np.tensordot(yiq, matrix, axes=([-1], [1]))
+    # Ensure RGB values are within the valid range
+    return np.clip(rgb, 0, 1)
+
+def redshift_image(rgb_image, shift_intensity=0.1):
+    """
+    Apply a redshift effect to an RGB image while maintaining brightness.
+    The input image is assumed to have shape (n, m, 3).
+    """
+    # Convert RGB to YIQ
+    yiq = rgb_to_yiq(rgb_image)
+    
+    # Increase the I component across the image
+    yiq[..., 1] += shift_intensity * (1 - yiq[..., 1])
+    
+    # Convert back to RGB
+    return yiq_to_rgb(yiq)
+
+def shift_scheduler(modelno, total_trajectories):
+    return -2/total_trajectories * modelno + 1
+
+model = 0
+frame=100
+with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+    model_pixels = pickle.load(f)
+color_corrected = redshift_image(model_pixels, shift_intensity=shift_scheduler(model, 1520))
+plt.imshow(color_corrected)
+
+
+#%%
+import numpy as np
+import pickle
+import matplotlib.pyplot as plt
+num_trajectories = 15
+num_frames = 200
+for frame in range(num_frames):
+    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+        dummy_pixels = pickle.load(f)
+    full_pixels = np.zeros_like(dummy_pixels)
+    for model in range(0, num_trajectories, 20):
+        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+            model_pixels = pickle.load(f)
+        color_corrected = redshift_image(model_pixels, shift_intensity=shift_scheduler(model, num_trajectories))
+        full_pixels = model_pixels + full_pixels
+    plt.imshow(full_pixels)
+    plt.show()
+    break
+        
 # %%
+import numpy as np
+import pickle
+import matplotlib.pyplot as plt
+frame=100
+num_trajectories = 1525
+num_frames = 200
+with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+    dummy_pixels = pickle.load(f)
+full_pixels = np.zeros_like(dummy_pixels)
+for model in range(0, num_trajectories, 80):
+    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+        model_pixels = pickle.load(f)
+    #color_corrected = redshift_image(model_pixels, shift_intensity=shift_scheduler(model, num_trajectories))
+    full_pixels = full_pixels + model_pixels
+average = full_pixels / (num_trajectories//80 + 1)
+
+full_pixels = np.zeros_like(average)
+for model in range(0, num_trajectories, 80):
+    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+        model_pixels = pickle.load(f)
+    #color_corrected = redshift_image(model_pixels, shift_intensity=shift_scheduler(model, num_trajectories))
+    model_pixels = model_pixels - average
+    full_pixels += model_pixels*10
+
+plt.imshow( full_pixels )
+plt.show()
+
+
+# %%
+import numpy as np
+import pickle
+import matplotlib.pyplot as plt
+frame=100
+num_trajectories = 1525
+num_frames = 200
+with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+    dummy_pixels = pickle.load(f)
+
+full_pixels = list()
+for model in range(0, num_trajectories, 80):
+    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+        model_pixels = pickle.load(f)
+    full_pixels.append(model_pixels)
+env_images = np.array(full_pixels)
+
+average_image = np.mean(images, axis=0)
+
+# Step 2: Variance highlighting
+# Using standard deviation as a proxy for variance here for visualization purposes
+std_image = np.std(images, axis=0)
+
+# Enhance the standard deviation image for better visibility
+# This step is adjustable based on how much emphasis you want on the differences
+enhanced_std_image = np.clip(std_image * 3, 0, 1)  # Example enhancement
+
+# Step 3: Overlaying variance
+# Combine the average image and the enhanced std image
+# This can be a simple addition, or you might want to use a more complex method to merge them
+composite_image = np.clip(average_image + enhanced_std_image, 0, 1)
+
+# Display the results
+fig, ax = plt.subplots(1, 4, figsize=(20, 5))
+ax[0].imshow(average_image, cmap='gray')
+ax[0].set_title('Average Image')
+ax[1].imshow(std_image, cmap='gray')
+ax[1].set_title('Standard Deviation')
+ax[2].imshow(enhanced_std_image, cmap='gray')
+ax[2].set_title('Enhanced Differences')
+ax[3].imshow(composite_image, cmap='gray')
+ax[3].set_title('Composite Image')
+plt.show()

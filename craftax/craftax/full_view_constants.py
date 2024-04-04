@@ -730,6 +730,7 @@ def load_all_textures(block_pixel_size):
     )
 
     # Player
+    # TODO: Figure an efficient way to move this, and vary it based on player position in full map view
     pad_pixels = (
         (OBS_DIM[0] // 2) * block_pixel_size,
         (OBS_DIM[1] // 2) * block_pixel_size,
