@@ -659,11 +659,10 @@ def make_train(config):
                 runner_state, single_metric_obs = _update_step_jit(runner_state, metric)
                 trajectory = single_metric_obs.traj
                 os.makedirs(f"/workspace/CraftaxDevinterp/intermediate/{update_no}", exist_ok=True)
-                train_state = jax.tree_map(lambda x: x[0], trajectory)
                 path = ocp.test_utils.erase_and_create_empty(f"/workspace/CraftaxDevinterp/intermediate/{update_no}")
                 checkpoint_name = f"model_{update_no}"
                 checkpointer = ocp.StandardCheckpointer()
-                checkpointer.save(path / checkpoint_name, train_state)
+                checkpointer.save(path / checkpoint_name, trajectory)
         else:
             runner_state, metric_obs = jax.lax.scan(
                 _update_step, runner_state, None, config["NUM_UPDATES"]
