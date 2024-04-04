@@ -16,10 +16,19 @@ from craftax.craftax.envs.craftax_symbolic_env import CraftaxSymbolicEnv
 import pickle
 import os
 from tqdm import tqdm
+from craftax.craftax.full_view_constants import *
+from craftax.craftax.craftax_state import EnvState
+from craftax.craftax.util.game_logic_utils import is_boss_vulnerable
+import matplotlib.pyplot as plt
+
 
 #%%
 layer_size = 512
 seed = 0
+num_trajectories = 15
+rng = jax.random.PRNGKey(seed)
+rng, _rng = jax.random.split(rng)
+
 
 def generate_trajectory(directory, rng, num_envs=1, num_steps=496):
     env = CraftaxSymbolicEnv()
@@ -82,24 +91,8 @@ def generate_trajectory(directory, rng, num_envs=1, num_steps=496):
     )
     return traj_batch.state
 
-rng = jax.random.PRNGKey(seed)
-rng, _rng = jax.random.split(rng)
-
 jit_gen_traj = jax.jit(generate_trajectory)
 
-# %%
-trajectory = generate_trajectory("/workspace/CraftaxDevinterp/intermediate/14", _rng)
-print(trajectory)
-#%%
-import jax
-from functools import partial
-
-from craftax.craftax.full_view_constants import *
-from craftax.craftax.craftax_state import EnvState
-from craftax.craftax.util.game_logic_utils import is_boss_vulnerable
-import matplotlib.pyplot as plt
-
-# %%
 def render_craftax_pixels(state, block_pixel_size, do_night_noise=True):
     textures = TEXTURES[block_pixel_size]
     obs_dim_array = jnp.array([OBS_DIM[0], OBS_DIM[1]], dtype=jnp.int32)
@@ -798,21 +791,16 @@ def render_craftax_pixels(state, block_pixel_size, do_night_noise=True):
     # pixels = pixels[::downscale, ::downscale]
 
     return pixels
-#%%
 
-os.makedirs("/workspace/CraftaxDevinterp/frames", exist_ok=True)
-for frame in tqdm(range(496)):
-    state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
-    pixels = render_craftax_pixels(state, 7)/256
-    plt.imshow(pixels)
-    plt.savefig(f"/workspace/CraftaxDevinterp/frames/{frame}.png")
-# %%
-num_trajectories = 15
+_jitted_render_pixels = jax.jit(render_craftax_pixels)
+
+#%%
 for trajectory_no in range(num_trajectories):
-    trajectory = generate_trajectory(f"/workspace/CraftaxDevinterp/intermediate/{trajectory_no}", _rng)
-    for frame in tqdm(range(496)):
+    trajectory = jit_gen_traj(f"/workspace/CraftaxDevinterp/intermediate/{trajectory_no}", _rng)
+    os.makedirs(f"/workspace/CraftaxDevinterp/frames/trajectory_{trajectory_no}", exist_ok=True)
+    for frame in tqdm(range(200)):
         state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
-        pixels = render_craftax_pixels(state, 7)/256
+        pixels = _jitted_render_pixels(state, 7)/256
         plt.imshow(pixels)
         plt.savefig(f"/workspace/CraftaxDevinterp/frames/trajectory_{trajectory_no}/frame_{frame}.png")
         plt.close()
