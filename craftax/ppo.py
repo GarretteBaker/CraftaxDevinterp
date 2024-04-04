@@ -763,14 +763,16 @@ def run_ppo(config):
         def _save_intermediate_networks(dir_name):
             train_states = out["trajectory"]
             num_checkpoints = train_states["params"]["Dense_0"]["kernel"].shape[1]
+            # jax.tree_map(lambda x: print(x.shape), train_states)
             for checkpoint_num in range(num_checkpoints):
-                train_state = jax.tree_map(lambda x: x[checkpoint_num, :, :], train_states)
+                train_state = jax.tree_map(lambda x: x[0, checkpoint_num, ...], train_states)
                 print(train_state["params"]["Dense_0"]["kernel"].shape)
                 os.makedirs(f"{dir_name}/checkpoint_{checkpoint_num}", exist_ok=True)
                 path = ocp.test_utils.erase_and_create_empty(f"{dir_name}/checkpoint_{checkpoint_num}")
                 checkpoint_name = f"model_{checkpoint_num}"
                 checkpointer = ocp.StandardCheckpointer()
                 checkpointer.save(path / checkpoint_name, train_state)
+                
 
 
         if config["SAVE_POLICY"]:
