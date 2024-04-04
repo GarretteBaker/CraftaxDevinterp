@@ -15,6 +15,7 @@ import orbax.checkpoint as ocp
 from craftax.craftax.envs.craftax_symbolic_env import CraftaxSymbolicEnv
 import pickle
 import os
+from tqdm import tqdm
 
 #%%
 layer_size = 512
@@ -87,7 +88,7 @@ rng, _rng = jax.random.split(rng)
 jit_gen_traj = jax.jit(generate_trajectory)
 
 # %%
-trajectory = generate_trajectory("/workspace/CraftaxDevinterp/intermediate/10", _rng)
+trajectory = generate_trajectory("/workspace/CraftaxDevinterp/intermediate/14", _rng)
 print(trajectory)
 #%%
 import jax
@@ -797,8 +798,22 @@ def render_craftax_pixels(state, block_pixel_size, do_night_noise=True):
     # pixels = pixels[::downscale, ::downscale]
 
     return pixels
+#%%
 
-pixels = render_craftax_pixels(trajectory, 7)/256
-plt.imshow(pixels)
-
+os.makedirs("/workspace/CraftaxDevinterp/frames", exist_ok=True)
+for frame in tqdm(range(496)):
+    state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
+    pixels = render_craftax_pixels(state, 7)/256
+    plt.imshow(pixels)
+    plt.savefig(f"/workspace/CraftaxDevinterp/frames/{frame}.png")
 # %%
+num_trajectories = 15
+for trajectory_no in range(num_trajectories):
+    trajectory = generate_trajectory(f"/workspace/CraftaxDevinterp/intermediate/{trajectory_no}", _rng)
+    for frame in tqdm(range(496)):
+        state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
+        pixels = render_craftax_pixels(state, 7)/256
+        plt.imshow(pixels)
+        plt.savefig(f"/workspace/CraftaxDevinterp/frames/trajectory_{trajectory_no}/frame_{frame}.png")
+        plt.close()
+#%%
