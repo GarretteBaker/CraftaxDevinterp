@@ -25,12 +25,12 @@ import matplotlib.pyplot as plt
 #%%
 layer_size = 512
 seed = 0
-num_trajectories = 15
+num_trajectories = 1525
 rng = jax.random.PRNGKey(seed)
 rng, _rng = jax.random.split(rng)
 
 
-def generate_trajectory(directory, rng, num_envs=1, num_steps=496):
+def generate_trajectory(network_params, rng, num_envs=1, num_steps=496):
     env = CraftaxSymbolicEnv()
     env_params = env.default_params
     env = LogWrapper(env)
@@ -39,10 +39,6 @@ def generate_trajectory(directory, rng, num_envs=1, num_steps=496):
         num_envs=num_envs,
         reset_ratio=min(16, num_envs),
     )
-    checkpointer = ocp.StandardCheckpointer()
-    checkpoint_directory = directory
-    folder_list = os.listdir(checkpoint_directory)
-    network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
     network = ActorCritic(env.action_space(env_params).n, layer_size)
 
     class Transition(NamedTuple):
@@ -93,7 +89,8 @@ def generate_trajectory(directory, rng, num_envs=1, num_steps=496):
 
 jit_gen_traj = jax.jit(generate_trajectory)
 
-def render_craftax_pixels(state, block_pixel_size, do_night_noise=True):
+def render_craftax_pixels(state, do_night_noise=True):
+    block_pixel_size = 7
     textures = TEXTURES[block_pixel_size]
     obs_dim_array = jnp.array([OBS_DIM[0], OBS_DIM[1]], dtype=jnp.int32)
 
@@ -795,13 +792,20 @@ def render_craftax_pixels(state, block_pixel_size, do_night_noise=True):
 _jitted_render_pixels = jax.jit(render_craftax_pixels)
 
 #%%
-for trajectory_no in range(num_trajectories):
-    trajectory = jit_gen_traj(f"/workspace/CraftaxDevinterp/intermediate/{trajectory_no}", _rng)
+for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progress"):
+    checkpointer = ocp.StandardCheckpointer()
+    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{trajectory_no}"
+    folder_list = os.listdir(checkpoint_directory)
+    network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+
+    trajectory = jit_gen_traj(network_params, _rng)
     os.makedirs(f"/workspace/CraftaxDevinterp/frames/trajectory_{trajectory_no}", exist_ok=True)
-    for frame in tqdm(range(200)):
+    for frame in tqdm(range(200), desc="Frame progress"):
         state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
-        pixels = _jitted_render_pixels(state, 7)/256
+        pixels = _jitted_render_pixels(state)/256
         plt.imshow(pixels)
         plt.savefig(f"/workspace/CraftaxDevinterp/frames/trajectory_{trajectory_no}/frame_{frame}.png")
         plt.close()
 #%%
+textures = TEXTURES[7]
+# %%
