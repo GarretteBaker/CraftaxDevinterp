@@ -114,15 +114,7 @@ loss_fn = jax.jit(
     lambda param, inputs, targets: mse_loss(param, network, inputs, targets)
 )
 
-sgld_config = SGLDConfig(
-    {
-        'epsilon': 1e-6, 
-        'gamma': 1.0, 
-        'num_steps': 100, 
-        'num_chains': 1, # NOTE: Code doesn't have >1 chains available yet
-        'batch_size': 128
-    }
-)
+sgld_config = SGLDConfig(1e-6, 1.0, 100, 1, 128)
 
 model_no = 1000
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"
@@ -141,7 +133,7 @@ loss_trace, distances, acceptance_probs = run_sgld(
     expert_obses, 
     expert_logitses, 
     itemp = itemp, 
-    train_batch_loss = True, 
+    trace_batch_loss = True, 
     compute_distance = False, 
     verbose = True
 )
