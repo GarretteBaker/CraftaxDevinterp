@@ -98,7 +98,8 @@ expert_obses, expert_logitses = jit_gen_traj(network_params, _rng)
 
 #%%
 def mse_loss(param, model, inputs, targets):
-    predictions = model.apply(param, inputs)
+    predictions, _ = model.apply(param, inputs)
+    predictions = predictions.logits
     return jnp.mean((predictions - targets) ** 2)
 
 env = CraftaxSymbolicEnv()
@@ -114,7 +115,7 @@ loss_fn = jax.jit(
     lambda param, inputs, targets: mse_loss(param, network, inputs, targets)
 )
 
-sgld_config = SGLDConfig(1e-6, 1.0, 100, 1, 128)
+sgld_config = SGLDConfig(1e-6, 1.0, 100, 1, 16)
 
 model_no = 1000
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"

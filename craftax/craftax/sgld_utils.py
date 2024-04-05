@@ -96,7 +96,7 @@ def run_sgld(rngkey, loss_fn, sgld_config, param_init, x_train, y_train, itemp=N
                     sgld_config.epsilon
                 )
                 accept_probs.append((t, prob))
-            if t % 200 == 0 and verbose:
+            if t % (sgld_config.num_steps//10) == 0 and verbose:
                 print(f"Step {t}, loss: {loss_trace[-1]}")
             t += 1
     return loss_trace, distances, accept_probs
