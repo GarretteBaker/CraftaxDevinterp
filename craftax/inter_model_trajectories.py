@@ -44,6 +44,7 @@ def generate_trajectory(network_params, rng, num_envs=1, num_steps=496):
 
     class Transition(NamedTuple):
         state: jnp.ndarray
+        done: jnp.ndarray
 
     # COLLECT TRAJECTORIES
     def _env_step(runner_state, unused):
@@ -60,12 +61,13 @@ def generate_trajectory(network_params, rng, num_envs=1, num_steps=496):
 
         # STEP ENV
         rng, _rng = jax.random.split(rng)
-        obsv, env_state, _, _, _ = env.step(
+        obsv, env_state, _, done, _ = env.step(
             _rng, env_state, action, env_params
         )
 
         transition = Transition(
             state = env_state,
+            done = done
         )
         runner_state = (
             env_state,
@@ -86,11 +88,11 @@ def generate_trajectory(network_params, rng, num_envs=1, num_steps=496):
     runner_state, traj_batch = jax.lax.scan(
         _env_step, runner_state, None, num_steps
     )
-    return traj_batch.state
+    return traj_batch.state, traj_batch.done
 
 jit_gen_traj = jax.jit(generate_trajectory)
 #%%
-def render_craftax_pixels(state, do_night_noise=True):
+def render_craftax_pixels(state, do_night_noise=False):
     block_pixel_size = 7
     textures = TEXTURES[block_pixel_size]
     obs_dim_array = jnp.array([OBS_DIM[0], OBS_DIM[1]], dtype=jnp.int32)
@@ -413,46 +415,46 @@ def render_craftax_pixels(state, do_night_noise=True):
 
     map_pixels = (light_map_pixels)[:, :, None] * map_pixels
 
-    # Apply night
-    night_pixels = textures["night_texture"]
-    daylight = state.light_level
-    daylight = jax.lax.select(state.player_level == 0, daylight, 1.0)
+    # Apply night (turned off for inter model traj)
+    # night_pixels = textures["night_texture"]
+    # daylight = state.light_level
+    # daylight = jax.lax.select(state.player_level == 0, daylight, 1.0)
 
-    if do_night_noise:
-        night_noise = (
-            jax.random.uniform(state.state_rng, night_pixels.shape[:2]) * 95 + 32
-        )
-        night_noise = jnp.expand_dims(night_noise, axis=-1).repeat(3, axis=-1)
+    # if do_night_noise:
+    #     night_noise = (
+    #         jax.random.uniform(state.state_rng, night_pixels.shape[:2]) * 95 + 32
+    #     )
+    #     night_noise = jnp.expand_dims(night_noise, axis=-1).repeat(3, axis=-1)
 
-        night_intensity = 2 * (0.5 - daylight)
-        night_intensity = jnp.maximum(night_intensity, 0.0)
-        night_mask = textures["night_noise_intensity_texture"] * night_intensity
-        night = (1.0 - night_mask) * map_pixels + night_mask * night_noise
+    #     night_intensity = 2 * (0.5 - daylight)
+    #     night_intensity = jnp.maximum(night_intensity, 0.0)
+    #     night_mask = textures["night_noise_intensity_texture"] * night_intensity
+    #     night = (1.0 - night_mask) * map_pixels + night_mask * night_noise
 
-        night = night_pixels * 0.5 + 0.5 * night
-        map_pixels = daylight * map_pixels + (1 - daylight) * night
-    else:
-        night_noise = jnp.ones(night_pixels.shape[:2]) * 64
-        night_noise = jnp.expand_dims(night_noise, axis=-1).repeat(3, axis=-1)
+    #     night = night_pixels * 0.5 + 0.5 * night
+    #     map_pixels = daylight * map_pixels + (1 - daylight) * night
+    # else:
+    #     night_noise = jnp.ones(night_pixels.shape[:2]) * 64
+    #     night_noise = jnp.expand_dims(night_noise, axis=-1).repeat(3, axis=-1)
 
-        night_intensity = 2 * (0.5 - daylight)
-        night_intensity = jnp.maximum(night_intensity, 0.0)
-        night_mask = (
-            jnp.ones_like(textures["night_noise_intensity_texture"])
-            * night_intensity
-            * 0.5
-        )
-        night = (1.0 - night_mask) * map_pixels + night_mask * night_noise
+    #     night_intensity = 2 * (0.5 - daylight)
+    #     night_intensity = jnp.maximum(night_intensity, 0.0)
+    #     night_mask = (
+    #         jnp.ones_like(textures["night_noise_intensity_texture"])
+    #         * night_intensity
+    #         * 0.5
+    #     )
+    #     night = (1.0 - night_mask) * map_pixels + night_mask * night_noise
 
-        night = night_pixels * 0.5 + 0.5 * night
-        map_pixels = daylight * map_pixels + (1 - daylight) * night
-        # map_pixels = daylight * map_pixels
-        # night_noise = jnp.ones(night_pixels.shape[:2]) * 64
+    #     night = night_pixels * 0.5 + 0.5 * night
+    #     map_pixels = daylight * map_pixels + (1 - daylight) * night
+    #     # map_pixels = daylight * map_pixels
+    #     # night_noise = jnp.ones(night_pixels.shape[:2]) * 64
 
-    # Apply sleep
-    sleep_pixels = jnp.zeros_like(map_pixels)
-    sleep_level = 1.0 - state.is_sleeping * 0.5
-    map_pixels = sleep_level * map_pixels + (1 - sleep_level) * sleep_pixels
+    # Apply sleep (turned off for inter model traj)
+    # sleep_pixels = jnp.zeros_like(map_pixels)
+    # sleep_level = 1.0 - state.is_sleeping * 0.5
+    # map_pixels = sleep_level * map_pixels + (1 - sleep_level) * sleep_pixels
 
     # Render mob map
     # mob_map_pixels = (
@@ -808,13 +810,17 @@ for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progr
     folder_list = os.listdir(checkpoint_directory)
     network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
-    trajectory = jit_gen_traj(network_params, _rng)
+    trajectory, done = jit_gen_traj(network_params, _rng)
     os.makedirs(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}", exist_ok=True)
-    for frame in tqdm(range(200), desc="Frame progress"):
-        state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
-        pixels = _jitted_render_pixels(state)/256
-        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
-            pickle.dump(pixels, f)
+    os.makedirs(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}", exist_ok=True)
+    with open(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}.pkl", "wb") as f:
+        pickle.dump(done, f)
+
+    # for frame in tqdm(range(200), desc="Frame progress"):
+    #     state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
+    #     pixels = _jitted_render_pixels(state)/256
+    #     with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
+    #         pickle.dump(pixels, f)
         
 #%%
 import numpy as np
@@ -849,7 +855,7 @@ def yiq_to_rgb(yiq):
     # Ensure RGB values are within the valid range
     return np.clip(rgb, 0, 1)
 
-def redshift_image(rgb_image, shift_intensity=0.1):
+def redshift_image(rgb_image, shift_intensity):
     """
     Apply a redshift effect to an RGB image while maintaining brightness.
     The input image is assumed to have shape (n, m, 3).
@@ -942,16 +948,19 @@ def create_composite_furthest_mean(frame, num_trajectories):
             output_image[i, j, :] = images_stack[max_distance_idx, i, j, :]
     return output_image
 
-def create_composite_furthest_mean_shifted(frame, num_trajectories):
-    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
-        dummy_pixels = pickle.load(f)
-
+def get_image_stack(frame, num_trajectories):
     full_pixels = list()
     for model in range(0, num_trajectories, 80):
         with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
             model_pixels = pickle.load(f)
-        full_pixels.append(model_pixels)
+        with open(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{model}/frame_{min(200-1, frame+1)}.pkl", "rb") as f:
+            done = pickle.load(f)
+        if not done:
+            full_pixels.append(model_pixels)
     images_stack = np.array(full_pixels)
+    return images_stack
+
+def create_composite_furthest_mean_shifted(images_stack):
     mean_image = np.mean(images_stack, axis=0)
 
     # Initialize an array to hold the output image
@@ -966,6 +975,8 @@ def create_composite_furthest_mean_shifted(frame, num_trajectories):
             max_distance_idx = np.argmax(distances)
 
             shift_intensity = distances[max_distance_idx]/2
+            print(f"Max distance index for {i}, {j} is {max_distance_idx} with distance {distances[max_distance_idx]}")
+
 
             # Assign the pixel with the maximum distance to the output image
             if max_distance_idx < len(images_stack) / 2:
@@ -976,18 +987,24 @@ def create_composite_furthest_mean_shifted(frame, num_trajectories):
                 output_image_shifted[i, j, :] = redshift_image(images_stack[max_distance_idx, i, j, :].reshape(1, 1, 3), -shift_intensity).reshape(3,)
     return output_image_shifted
 
+# import cProfile
 
-composite_image = create_composite_furthest_mean_shifted(33, num_trajectories=num_trajectories)
+# cProfile.run("create_composite_furthest_mean_shifted(images_stack)",sort=1)
+#%%
+images_stack = get_image_stack(199, num_trajectories=num_trajectories)
+composite_image = create_composite_furthest_mean_shifted(images_stack)
 plt.imshow(composite_image)
 plt.show()
 #%%
 
 num_trajectories = 1525
 num_frames = 200
+
 #%%
 os.makedirs("/workspace/CraftaxDevinterp/frames/composite", exist_ok=True)
 for frame in tqdm(range(num_frames)):
-    composite_image = create_composite_furthest_mean_shifted(frame, num_trajectories=num_trajectories)
+    images_stack = get_image_stack(frame, num_trajectories=num_trajectories)
+    composite_image = create_composite_furthest_mean_shifted(images_stack)
     plt.imshow(composite_image)
     plt.savefig(f"/workspace/CraftaxDevinterp/frames/composite/{frame}.png")
     plt.close()
