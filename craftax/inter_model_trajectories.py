@@ -30,6 +30,7 @@ num_trajectories = 1525
 rng = jax.random.PRNGKey(seed)
 rng, _rng = jax.random.split(rng)
 num_frames = 496
+frames_dir = f"/workspace/CraftaxDevinterp/frames/{seed}"
 
 def generate_trajectory(network_params, rng, num_envs=1, num_steps=num_frames):
     env = CraftaxSymbolicEnv()
@@ -868,12 +869,12 @@ def shift_scheduler(modelno, total_trajectories):
     return -2/total_trajectories * modelno + 1
 
 def create_composite(frame, num_trajectories = 1525):
-    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+    with open(f"{frames_dir}/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
         dummy_pixels = pickle.load(f)
 
     full_pixels = list()
     for model in range(0, num_trajectories, 80):
-        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+        with open(f"{frames_dir}/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
             model_pixels = pickle.load(f)
         full_pixels.append(model_pixels)
     images = np.array(full_pixels)
@@ -887,12 +888,12 @@ def create_composite(frame, num_trajectories = 1525):
     return color_corrected_composite
 
 def create_composite_range(frame, num_trajectories):
-    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+    with open(f"{frames_dir}/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
         dummy_pixels = pickle.load(f)
 
     full_pixels = list()
     for model in range(0, num_trajectories, 80):
-        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+        with open(f"{frames_dir}/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
             model_pixels = pickle.load(f)
         full_pixels.append(model_pixels)
     images = np.array(full_pixels)
@@ -918,12 +919,12 @@ def create_composite_range(frame, num_trajectories):
     return composite_image
 
 def create_composite_furthest_mean(frame, num_trajectories):
-    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+    with open(f"{frames_dir}/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
         dummy_pixels = pickle.load(f)
 
     full_pixels = list()
     for model in range(0, num_trajectories, 80):
-        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+        with open(f"{frames_dir}/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
             model_pixels = pickle.load(f)
         full_pixels.append(model_pixels)
     images_stack = np.array(full_pixels)
@@ -946,9 +947,9 @@ def create_composite_furthest_mean(frame, num_trajectories):
 def get_image_stack(frame, num_trajectories):
     full_pixels = list()
     for model in range(0, num_trajectories, 80):
-        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+        with open(f"{frames_dir}/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
             model_pixels = pickle.load(f)
-        with open(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{model}.pkl", "rb") as f:
+        with open(f"{frames_dir}/dones/trajectory_{model}.pkl", "rb") as f:
             done = pickle.load(f)
         if True not in done[:frame+1, 0]:
             full_pixels.append(model_pixels)
@@ -1002,24 +1003,24 @@ for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progr
     network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
     trajectory, done = jit_gen_traj(network_params, _rng)
-    os.makedirs(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}", exist_ok=True)
-    os.makedirs(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}", exist_ok=True)
-    with open(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}.pkl", "wb") as f:
+    os.makedirs(f"{frames_dir}/pixels/trajectory_{trajectory_no}", exist_ok=True)
+    os.makedirs(f"{frames_dir}/dones/trajectory_{trajectory_no}", exist_ok=True)
+    with open(f"{frames_dir}/dones/trajectory_{trajectory_no}.pkl", "wb") as f:
         pickle.dump(done, f)
 
     for frame in tqdm(range(496), desc="Frame progress"):
         state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
         pixels = _jitted_render_pixels(state)/256
-        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
+        with open(f"{frames_dir}/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
             pickle.dump(pixels, f)
 
 
-os.makedirs("/workspace/CraftaxDevinterp/frames/composite", exist_ok=True)
+os.makedirs(f"{frames_dir}/composite", exist_ok=True)
 for frame in tqdm(range(num_frames)):
     images_stack = get_image_stack(frame, num_trajectories=num_trajectories)
     composite_image = create_composite_furthest_mean_shifted(images_stack)
     plt.imshow(composite_image)
-    plt.savefig(f"/workspace/CraftaxDevinterp/frames/composite/{frame}.png")
+    plt.savefig(f"{frames_dir}/composite/{frame}.png")
     plt.close()
 
 #%%
