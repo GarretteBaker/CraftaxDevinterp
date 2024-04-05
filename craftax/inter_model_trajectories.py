@@ -29,9 +29,9 @@ seed = 0
 num_trajectories = 1525
 rng = jax.random.PRNGKey(seed)
 rng, _rng = jax.random.split(rng)
+num_frames = 496
 
-
-def generate_trajectory(network_params, rng, num_envs=1, num_steps=496):
+def generate_trajectory(network_params, rng, num_envs=1, num_steps=num_frames):
     env = CraftaxSymbolicEnv()
     env_params = env.default_params
     env = LogWrapper(env)
@@ -804,29 +804,24 @@ def render_craftax_pixels(state, do_night_noise=False):
 _jitted_render_pixels = jax.jit(render_craftax_pixels)
 
 #%%
-for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progress"):
-    checkpointer = ocp.StandardCheckpointer()
-    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{trajectory_no}"
-    folder_list = os.listdir(checkpoint_directory)
-    network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+# for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progress"):
+#     checkpointer = ocp.StandardCheckpointer()
+#     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{trajectory_no}"
+#     folder_list = os.listdir(checkpoint_directory)
+#     network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
-    trajectory, done = jit_gen_traj(network_params, _rng)
-    os.makedirs(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}", exist_ok=True)
-    os.makedirs(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}", exist_ok=True)
-    with open(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}.pkl", "wb") as f:
-        pickle.dump(done, f)
+#     trajectory, done = jit_gen_traj(network_params, _rng)
+#     os.makedirs(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}", exist_ok=True)
+#     os.makedirs(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}", exist_ok=True)
+#     with open(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}.pkl", "wb") as f:
+#         pickle.dump(done, f)
 
-    # for frame in tqdm(range(200), desc="Frame progress"):
-    #     state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
-    #     pixels = _jitted_render_pixels(state)/256
-    #     with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
-    #         pickle.dump(pixels, f)
+#     for frame in tqdm(range(496), desc="Frame progress"):
+#         state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
+#         pixels = _jitted_render_pixels(state)/256
+#         with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
+#             pickle.dump(pixels, f)
         
-#%%
-import numpy as np
-num_frames = 200
-import numpy as np
-
 def rgb_to_yiq(rgb):
     """
     Convert an RGB image to the YIQ color space.
@@ -953,9 +948,9 @@ def get_image_stack(frame, num_trajectories):
     for model in range(0, num_trajectories, 80):
         with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
             model_pixels = pickle.load(f)
-        with open(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{model}/frame_{min(200-1, frame+1)}.pkl", "rb") as f:
+        with open(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{model}.pkl", "rb") as f:
             done = pickle.load(f)
-        if not done:
+        if True not in done[:frame+1, 0]:
             full_pixels.append(model_pixels)
     images_stack = np.array(full_pixels)
     return images_stack
@@ -975,7 +970,6 @@ def create_composite_furthest_mean_shifted(images_stack):
             max_distance_idx = np.argmax(distances)
 
             shift_intensity = distances[max_distance_idx]/2
-            print(f"Max distance index for {i}, {j} is {max_distance_idx} with distance {distances[max_distance_idx]}")
 
 
             # Assign the pixel with the maximum distance to the output image
@@ -990,17 +984,36 @@ def create_composite_furthest_mean_shifted(images_stack):
 # import cProfile
 
 # cProfile.run("create_composite_furthest_mean_shifted(images_stack)",sort=1)
-#%%
-images_stack = get_image_stack(199, num_trajectories=num_trajectories)
-composite_image = create_composite_furthest_mean_shifted(images_stack)
-plt.imshow(composite_image)
-plt.show()
+# images_stack = get_image_stack(199, num_trajectories=num_trajectories)
+# composite_image = create_composite_furthest_mean_shifted(images_stack)
+# plt.imshow(composite_image)
+# plt.show()
+# #%%
+
+# num_trajectories = 1525
+# num_frames = 200
+
 #%%
 
-num_trajectories = 1525
-num_frames = 200
+for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progress"):
+    checkpointer = ocp.StandardCheckpointer()
+    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{trajectory_no}"
+    folder_list = os.listdir(checkpoint_directory)
+    network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
-#%%
+    trajectory, done = jit_gen_traj(network_params, _rng)
+    os.makedirs(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}", exist_ok=True)
+    os.makedirs(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}", exist_ok=True)
+    with open(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}.pkl", "wb") as f:
+        pickle.dump(done, f)
+
+    for frame in tqdm(range(496), desc="Frame progress"):
+        state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
+        pixels = _jitted_render_pixels(state)/256
+        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
+            pickle.dump(pixels, f)
+
+
 os.makedirs("/workspace/CraftaxDevinterp/frames/composite", exist_ok=True)
 for frame in tqdm(range(num_frames)):
     images_stack = get_image_stack(frame, num_trajectories=num_trajectories)
@@ -1011,101 +1024,101 @@ for frame in tqdm(range(num_frames)):
 
 #%%
 
-model = 0
-frame=100
-with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
-    model_pixels = pickle.load(f)
-color_corrected = redshift_image(model_pixels, shift_intensity=shift_scheduler(model, 1520))
-plt.imshow(color_corrected)
+# model = 0
+# frame=100
+# with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+#     model_pixels = pickle.load(f)
+# color_corrected = redshift_image(model_pixels, shift_intensity=shift_scheduler(model, 1520))
+# plt.imshow(color_corrected)
 
 
-#%%
-import numpy as np
-import pickle
-import matplotlib.pyplot as plt
-#%%
-num_trajectories = 15
-num_frames = 200
-for frame in range(num_frames):
-    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
-        dummy_pixels = pickle.load(f)
-    full_pixels = np.zeros_like(dummy_pixels)
-    for model in range(0, num_trajectories, 20):
-        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
-            model_pixels = pickle.load(f)
-        color_corrected = redshift_image(model_pixels, shift_intensity=shift_scheduler(model, num_trajectories))
-        full_pixels = model_pixels + full_pixels
-    plt.imshow(full_pixels)
-    plt.show()
-    break
+# #%%
+# import numpy as np
+# import pickle
+# import matplotlib.pyplot as plt
+# #%%
+# num_trajectories = 15
+# num_frames = 200
+# for frame in range(num_frames):
+#     with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+#         dummy_pixels = pickle.load(f)
+#     full_pixels = np.zeros_like(dummy_pixels)
+#     for model in range(0, num_trajectories, 20):
+#         with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+#             model_pixels = pickle.load(f)
+#         color_corrected = redshift_image(model_pixels, shift_intensity=shift_scheduler(model, num_trajectories))
+#         full_pixels = model_pixels + full_pixels
+#     plt.imshow(full_pixels)
+#     plt.show()
+#     break
         
-# %%
-import numpy as np
-import pickle
-import matplotlib.pyplot as plt
-frame=100
-num_trajectories = 1525
-num_frames = 200
-with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
-    dummy_pixels = pickle.load(f)
-full_pixels = np.zeros_like(dummy_pixels)
-for model in range(0, num_trajectories, 80):
-    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
-        model_pixels = pickle.load(f)
-    #color_corrected = redshift_image(model_pixels, shift_intensity=shift_scheduler(model, num_trajectories))
-    full_pixels = full_pixels + model_pixels
-average = full_pixels / (num_trajectories//80 + 1)
+# # %%
+# import numpy as np
+# import pickle
+# import matplotlib.pyplot as plt
+# frame=100
+# num_trajectories = 1525
+# num_frames = 200
+# with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+#     dummy_pixels = pickle.load(f)
+# full_pixels = np.zeros_like(dummy_pixels)
+# for model in range(0, num_trajectories, 80):
+#     with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+#         model_pixels = pickle.load(f)
+#     #color_corrected = redshift_image(model_pixels, shift_intensity=shift_scheduler(model, num_trajectories))
+#     full_pixels = full_pixels + model_pixels
+# average = full_pixels / (num_trajectories//80 + 1)
 
-full_pixels = np.zeros_like(average)
-for model in range(0, num_trajectories, 80):
-    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
-        model_pixels = pickle.load(f)
-    #color_corrected = redshift_image(model_pixels, shift_intensity=shift_scheduler(model, num_trajectories))
-    model_pixels = model_pixels - average
-    full_pixels += model_pixels*10
+# full_pixels = np.zeros_like(average)
+# for model in range(0, num_trajectories, 80):
+#     with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+#         model_pixels = pickle.load(f)
+#     #color_corrected = redshift_image(model_pixels, shift_intensity=shift_scheduler(model, num_trajectories))
+#     model_pixels = model_pixels - average
+#     full_pixels += model_pixels*10
 
-plt.imshow( full_pixels )
-plt.show()
-
-
-# %%
-import numpy as np
-import pickle
-import matplotlib.pyplot as plt
-frame=100
-num_trajectories = 1525
-def create_composite(frame, num_trajectories = 1525):
-    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
-        dummy_pixels = pickle.load(f)
-
-    full_pixels = list()
-    for model in range(0, num_trajectories, 80):
-        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
-            model_pixels = pickle.load(f)
-        full_pixels.append(model_pixels)
-    images = np.array(full_pixels)
-
-    average_image = np.mean(images, axis=0)
-    std_image = np.std(images, axis=0)
-    enhanced_std_image = np.clip(std_image * 3, 0, 1)  # Example enhancement
-    composite_image = np.clip(average_image + enhanced_std_image, 0, 1)
-    return composite_image
+# plt.imshow( full_pixels )
+# plt.show()
 
 
+# # %%
+# import numpy as np
+# import pickle
+# import matplotlib.pyplot as plt
+# frame=100
+# num_trajectories = 1525
+# def create_composite(frame, num_trajectories = 1525):
+#     with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+#         dummy_pixels = pickle.load(f)
+
+#     full_pixels = list()
+#     for model in range(0, num_trajectories, 80):
+#         with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+#             model_pixels = pickle.load(f)
+#         full_pixels.append(model_pixels)
+#     images = np.array(full_pixels)
+
+#     average_image = np.mean(images, axis=0)
+#     std_image = np.std(images, axis=0)
+#     enhanced_std_image = np.clip(std_image * 3, 0, 1)  # Example enhancement
+#     composite_image = np.clip(average_image + enhanced_std_image, 0, 1)
+#     return composite_image
 
 
-# Step 2: Variance highlighting
-# Using standard deviation as a proxy for variance here for visualization purposes
 
-# Enhance the standard deviation image for better visibility
-# This step is adjustable based on how much emphasis you want on the differences
-enhanced_std_image = np.clip(std_image * 3, 0, 1)  # Example enhancement
 
-# Step 3: Overlaying variance
-# Combine the average image and the enhanced std image
-# This can be a simple addition, or you might want to use a more complex method to merge them
-composite_image = np.clip(average_image + enhanced_std_image, 0, 1)
+# # Step 2: Variance highlighting
+# # Using standard deviation as a proxy for variance here for visualization purposes
 
-# Display the results
-plt.imshow(composite_image)
-plt.show()
+# # Enhance the standard deviation image for better visibility
+# # This step is adjustable based on how much emphasis you want on the differences
+# enhanced_std_image = np.clip(std_image * 3, 0, 1)  # Example enhancement
+
+# # Step 3: Overlaying variance
+# # Combine the average image and the enhanced std image
+# # This can be a simple addition, or you might want to use a more complex method to merge them
+# composite_image = np.clip(average_image + enhanced_std_image, 0, 1)
+
+# # Display the results
+# plt.imshow(composite_image)
+# plt.show()
