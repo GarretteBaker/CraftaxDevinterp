@@ -866,6 +866,134 @@ def redshift_image(rgb_image, shift_intensity=0.1):
 def shift_scheduler(modelno, total_trajectories):
     return -2/total_trajectories * modelno + 1
 
+def create_composite(frame, num_trajectories = 1525):
+    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+        dummy_pixels = pickle.load(f)
+
+    full_pixels = list()
+    for model in range(0, num_trajectories, 80):
+        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+            model_pixels = pickle.load(f)
+        full_pixels.append(model_pixels)
+    images = np.array(full_pixels)
+
+    average_image = np.mean(images, axis=0)
+    std_image = np.std(images, axis=0)
+    # enhanced_std_image = np.clip(std_image * 3, 0, 1)  # Example enhancement
+    enhanced_std_image = std_image
+    composite_image = average_image * enhanced_std_image + average_image
+    color_corrected_composite = (composite_image - np.min(composite_image))/(np.max(composite_image) - np.min(composite_image))
+    return color_corrected_composite
+
+def create_composite_range(frame, num_trajectories):
+    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+        dummy_pixels = pickle.load(f)
+
+    full_pixels = list()
+    for model in range(0, num_trajectories, 80):
+        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+            model_pixels = pickle.load(f)
+        full_pixels.append(model_pixels)
+    images = np.array(full_pixels)
+    min_image = np.min(images, axis=0)
+    max_image = np.max(images, axis=0)
+
+    # Step 2: Compute the range (max - min) for each pixel
+    range_image = max_image - min_image
+
+    # Step 3: Normalize the range image
+    normalized_range_image = (range_image - np.min(range_image)) / (np.max(range_image) - np.min(range_image))
+
+    # Step 4: Combine the normalized range image with the average image
+    # First, normalize the average image
+    average_image = np.mean(images, axis=0)
+    normalized_avg_image = (average_image - np.min(average_image)) / (np.max(average_image) - np.min(average_image))
+
+    # Create the composite image
+    # For illustration, we simply add the normalized range to the average image
+    # You can experiment with different methods of combining these two
+    composite_image = normalized_avg_image * normalized_range_image + normalized_avg_image
+    composite_image = np.clip(composite_image, 0, 1)
+    return composite_image
+
+def create_composite_furthest_mean(frame, num_trajectories):
+    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+        dummy_pixels = pickle.load(f)
+
+    full_pixels = list()
+    for model in range(0, num_trajectories, 80):
+        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+            model_pixels = pickle.load(f)
+        full_pixels.append(model_pixels)
+    images_stack = np.array(full_pixels)
+    mean_image = np.mean(images_stack, axis=0)
+
+    # Initialize an array to hold the output image
+    output_image = np.zeros_like(mean_image)
+
+    # Iterate over each pixel
+    for i in range(images_stack.shape[1]):  # height
+        for j in range(images_stack.shape[2]):  # width
+            # Calculate the Euclidean distance from the mean for each pixel in the stack
+            distances = np.linalg.norm(images_stack[:, i, j, :] - mean_image[i, j, :], axis=1)
+            # Find the index of the image with the maximum distance
+            max_distance_idx = np.argmax(distances)
+            # Assign the pixel with the maximum distance to the output image
+            output_image[i, j, :] = images_stack[max_distance_idx, i, j, :]
+    return output_image
+
+def create_composite_furthest_mean_shifted(frame, num_trajectories):
+    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+        dummy_pixels = pickle.load(f)
+
+    full_pixels = list()
+    for model in range(0, num_trajectories, 80):
+        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+            model_pixels = pickle.load(f)
+        full_pixels.append(model_pixels)
+    images_stack = np.array(full_pixels)
+    mean_image = np.mean(images_stack, axis=0)
+
+    # Initialize an array to hold the output image
+    output_image_shifted = np.zeros_like(mean_image)
+
+    # Iterate over each pixel
+    for i in range(images_stack.shape[1]):  # height
+        for j in range(images_stack.shape[2]):  # width
+            # Calculate the Euclidean distance from the mean for each pixel in the stack
+            distances = np.linalg.norm(images_stack[:, i, j, :] - mean_image[i, j, :], axis=1)
+            # Find the index of the image with the maximum distance
+            max_distance_idx = np.argmax(distances)
+
+            shift_intensity = distances[max_distance_idx]/2
+
+            # Assign the pixel with the maximum distance to the output image
+            if max_distance_idx < len(images_stack) / 2:
+                # For earlier images, apply redshift
+                output_image_shifted[i, j, :] = redshift_image(images_stack[max_distance_idx, i, j, :].reshape(1, 1, 3), shift_intensity).reshape(3,)
+            else:
+                # For later images, apply blueshift (negative redshift)
+                output_image_shifted[i, j, :] = redshift_image(images_stack[max_distance_idx, i, j, :].reshape(1, 1, 3), -shift_intensity).reshape(3,)
+    return output_image_shifted
+
+
+composite_image = create_composite_furthest_mean_shifted(33, num_trajectories=num_trajectories)
+plt.imshow(composite_image)
+plt.show()
+#%%
+
+num_trajectories = 1525
+num_frames = 200
+#%%
+os.makedirs("/workspace/CraftaxDevinterp/frames/composite", exist_ok=True)
+for frame in tqdm(range(num_frames)):
+    composite_image = create_composite_furthest_mean_shifted(frame, num_trajectories=num_trajectories)
+    plt.imshow(composite_image)
+    plt.savefig(f"/workspace/CraftaxDevinterp/frames/composite/{frame}.png")
+    plt.close()
+
+#%%
+
 model = 0
 frame=100
 with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
@@ -878,6 +1006,7 @@ plt.imshow(color_corrected)
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
+#%%
 num_trajectories = 15
 num_frames = 200
 for frame in range(num_frames):
@@ -928,22 +1057,28 @@ import pickle
 import matplotlib.pyplot as plt
 frame=100
 num_trajectories = 1525
-num_frames = 200
-with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
-    dummy_pixels = pickle.load(f)
+def create_composite(frame, num_trajectories = 1525):
+    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{0}/frame_{0}.pkl", "rb") as f:
+        dummy_pixels = pickle.load(f)
 
-full_pixels = list()
-for model in range(0, num_trajectories, 80):
-    with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
-        model_pixels = pickle.load(f)
-    full_pixels.append(model_pixels)
-env_images = np.array(full_pixels)
+    full_pixels = list()
+    for model in range(0, num_trajectories, 80):
+        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{model}/frame_{frame}.pkl", "rb") as f:
+            model_pixels = pickle.load(f)
+        full_pixels.append(model_pixels)
+    images = np.array(full_pixels)
 
-average_image = np.mean(images, axis=0)
+    average_image = np.mean(images, axis=0)
+    std_image = np.std(images, axis=0)
+    enhanced_std_image = np.clip(std_image * 3, 0, 1)  # Example enhancement
+    composite_image = np.clip(average_image + enhanced_std_image, 0, 1)
+    return composite_image
+
+
+
 
 # Step 2: Variance highlighting
 # Using standard deviation as a proxy for variance here for visualization purposes
-std_image = np.std(images, axis=0)
 
 # Enhance the standard deviation image for better visibility
 # This step is adjustable based on how much emphasis you want on the differences
@@ -955,13 +1090,5 @@ enhanced_std_image = np.clip(std_image * 3, 0, 1)  # Example enhancement
 composite_image = np.clip(average_image + enhanced_std_image, 0, 1)
 
 # Display the results
-fig, ax = plt.subplots(1, 4, figsize=(20, 5))
-ax[0].imshow(average_image, cmap='gray')
-ax[0].set_title('Average Image')
-ax[1].imshow(std_image, cmap='gray')
-ax[1].set_title('Standard Deviation')
-ax[2].imshow(enhanced_std_image, cmap='gray')
-ax[2].set_title('Enhanced Differences')
-ax[3].imshow(composite_image, cmap='gray')
-ax[3].set_title('Composite Image')
+plt.imshow(composite_image)
 plt.show()
