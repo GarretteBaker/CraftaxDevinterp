@@ -32,6 +32,7 @@ dependencies = [
     "chex",
     "matplotlib",
     "imageio",
+    "dm-haiku"
 ]
 
 [project.scripts]
