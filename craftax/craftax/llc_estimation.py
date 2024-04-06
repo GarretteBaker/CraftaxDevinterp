@@ -21,6 +21,9 @@ from sgld_utils import (
     run_sgld
 )
 import numpy as np
+import matplotlib.pyplot as plt
+import pickle
+from tqdm import tqdm
 
 layer_size = 512
 seed = 0
@@ -28,7 +31,7 @@ rng = jax.random.PRNGKey(seed)
 rng, _rng = jax.random.split(rng)
 
 #%%
-def generate_trajectory(network_params, rng, num_envs=1, num_steps=100):
+def generate_trajectory(network_params, rng, num_envs=1, num_steps=495):
     env = CraftaxSymbolicEnv()
     env_params = env.default_params
     env = LogWrapper(env)
@@ -115,31 +118,47 @@ loss_fn = jax.jit(
     lambda param, inputs, targets: mse_loss(param, network, inputs, targets)
 )
 
-sgld_config = SGLDConfig(1e-6, 1.0, 100, 1, 16)
+sgld_config = SGLDConfig(
+    epsilon = 1e-4, 
+    gamma = 1e-3, 
+    num_steps = 1000, 
+    num_chains = 1,
+    batch_size = 32)
 
-model_no = 1000
-checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"
-checkpointer = ocp.StandardCheckpointer()
-folder_list = os.listdir(checkpoint_directory)
-network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+num_models = 1525
 
-num_training_data = len(expert_obses)
-itemp = 1/np.log(num_training_data)
+os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/trace_curves", exist_ok = True)
+os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/lambdahats", exist_ok=True)
+for model_no in tqdm(range(0, num_models)):
+    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"
+    checkpointer = ocp.StandardCheckpointer()
+    folder_list = os.listdir(checkpoint_directory)
+    network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
-loss_trace, distances, acceptance_probs = run_sgld(
-    _rng, 
-    loss_fn, 
-    sgld_config, 
-    network_params, 
-    expert_obses, 
-    expert_logitses, 
-    itemp = itemp, 
-    trace_batch_loss = True, 
-    compute_distance = False, 
-    verbose = True
-)
+    num_training_data = len(expert_obses)
+    itemp = 1/np.log(num_training_data)
 
-init_loss = loss_fn(network_params, expert_obses, expert_logitses)
-lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
-print(lambdahat)
-#%%
+    loss_trace, distances, acceptance_probs = run_sgld(
+        _rng, 
+        loss_fn, 
+        sgld_config, 
+        network_params, 
+        expert_obses, 
+        expert_logitses, 
+        itemp = itemp, 
+        trace_batch_loss = True, 
+        compute_distance = False, 
+        verbose = False
+    )
+
+    init_loss = loss_fn(network_params, expert_obses, expert_logitses)
+    lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
+    with open(f"/workspace/CraftaxDevinterp/llc_estimation/lambdahats/{model_no}.pkl", "wb") as f:
+        pickle.dump(lambdahat, f)
+    # plt.plot(loss_trace)
+    # plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/trace_curves/{model_no}.png")
+    # plt.close()
+
+# %%
+plt.plot(lambdahats)
+plt.show()
