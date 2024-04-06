@@ -130,8 +130,9 @@ num_eps = int(eps_upper_pow - eps_lower_pow) + 1
 
 gam_lower_pow = 0
 gam_upper_pow = 4
-num_gam = int(gam_upper_pow - gam_lower_pow + 1)
+num_gam = int(gam_upper_pow - gam_lower_pow) + 1
 
+os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug")
 fig, axs = plt.subplots(num_eps, num_gam, figsize=(16*num_eps, 16*num_gam))
 for i, epsilon in tqdm(enumerate(np.logspace(eps_lower_pow, eps_upper_pow, num=num_eps, base=10)), desc="Epsilon"):
     for j, gamma in tqdm(enumerate(np.logspace(gam_lower_pow, gam_upper_pow, num=num_gam, base=10)), desc="Gamma"):
