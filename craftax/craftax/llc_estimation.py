@@ -123,13 +123,13 @@ checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"
 checkpointer = ocp.StandardCheckpointer()
 folder_list = os.listdir(checkpoint_directory)
 network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-
+# TODO: if this range doesn't work, implement optimization of the network before sgld
 eps_lower_pow = -4
-eps_upper_pow = -7
+eps_upper_pow = -15
 num_eps = int(abs(eps_upper_pow - eps_lower_pow)) + 1
 
 gam_lower_pow = 0
-gam_upper_pow = 4
+gam_upper_pow = 15
 num_gam = int(gam_upper_pow - gam_lower_pow) + 1
 
 os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug", exist_ok=True)
