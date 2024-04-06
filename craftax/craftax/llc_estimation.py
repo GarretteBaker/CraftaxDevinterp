@@ -160,5 +160,18 @@ for model_no in tqdm(range(0, num_models)):
     # plt.close()
 
 # %%
+import numpy as np
+import matplotlib.pyplot as plt
+import pickle
+from tqdm import tqdm
+num_models = 1525
+
+print("loading lambdahats")
+lambdahats = list()
+for modelno in tqdm(range(0, num_models)):
+    with open(f"/workspace/CraftaxDevinterp/llc_estimation/lambdahats/{modelno}.pkl", "rb") as f:
+        lambdahat = pickle.load(f)
+    lambdahats.append(lambdahat)
 plt.plot(lambdahats)
 plt.show()
+# %%
