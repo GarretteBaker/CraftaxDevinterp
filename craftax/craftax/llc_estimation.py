@@ -124,15 +124,15 @@ checkpointer = ocp.StandardCheckpointer()
 folder_list = os.listdir(checkpoint_directory)
 network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
-eps_lower_pow = 4
-eps_upper_pow = 7
-num_eps = int(eps_upper_pow - eps_lower_pow) + 1
+eps_lower_pow = -4
+eps_upper_pow = -7
+num_eps = int(abs(eps_upper_pow - eps_lower_pow)) + 1
 
 gam_lower_pow = 0
 gam_upper_pow = 4
 num_gam = int(gam_upper_pow - gam_lower_pow) + 1
 
-os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug")
+os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug", exist_ok=True)
 fig, axs = plt.subplots(num_eps, num_gam, figsize=(16*num_eps, 16*num_gam))
 for i, epsilon in tqdm(enumerate(np.logspace(eps_lower_pow, eps_upper_pow, num=num_eps, base=10)), desc="Epsilon"):
     for j, gamma in tqdm(enumerate(np.logspace(gam_lower_pow, gam_upper_pow, num=num_gam, base=10)), desc="Gamma"):
