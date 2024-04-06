@@ -124,12 +124,20 @@ checkpointer = ocp.StandardCheckpointer()
 folder_list = os.listdir(checkpoint_directory)
 network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
-fig, axs = plt.subplots(4, 5)
-for i, epsilon in tqdm(enumerate(np.logspace(4, 7, num=int(7-4)+1, base=10)), desc="Epsilon"):
-    for j, gamma in tqdm(enumerate(np.logspace(0, 4, num=int(4)+1, base=10)), desc="Gamma"):
+eps_lower_pow = 4
+eps_upper_pow = 7
+num_eps = int(eps_upper_pow - eps_lower_pow) + 1
+
+gam_lower_pow = 0
+gam_upper_pow = 4
+num_gam = int(gam_upper_pow - gam_lower_pow + 1)
+
+fig, axs = plt.subplots(num_eps, num_gam, figsize=(16*num_eps, 16*num_gam))
+for i, epsilon in tqdm(enumerate(np.logspace(eps_lower_pow, eps_upper_pow, num=num_eps, base=10)), desc="Epsilon"):
+    for j, gamma in tqdm(enumerate(np.logspace(gam_lower_pow, gam_upper_pow, num=num_gam, base=10)), desc="Gamma"):
         sgld_config = SGLDConfig(
-            epsilon = 1e-7, 
-            gamma = 1e1, 
+            epsilon = epsilon, 
+            gamma = gamma, 
             num_steps = 1000, 
             num_chains = 1,
             batch_size = 64)
@@ -156,55 +164,55 @@ for i, epsilon in tqdm(enumerate(np.logspace(4, 7, num=int(7-4)+1, base=10)), de
         lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
         axs[i, j].plot(loss_trace)
         axs[i, j].set_title(f"epsilon {epsilon}, gamma {gamma}, lambda {lambdahat}")
-plt.tight_layout()
-plt.show()
+plt.tight_layout("/workspace/CraftaxDevinterp/llc_estimation/debug/calibration.png")
+plt.savefig()
 #%%
 
-os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug/trace_curves", exist_ok = True)
-os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats", exist_ok=True)
-for model_no in tqdm(range(0, num_models, 300)):
-    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"
-    checkpointer = ocp.StandardCheckpointer()
-    folder_list = os.listdir(checkpoint_directory)
-    network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+# os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug/trace_curves", exist_ok = True)
+# os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats", exist_ok=True)
+# for model_no in tqdm(range(0, num_models, 300)):
+#     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"
+#     checkpointer = ocp.StandardCheckpointer()
+#     folder_list = os.listdir(checkpoint_directory)
+#     network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
-    num_training_data = len(expert_obses)
-    itemp = 1/np.log(num_training_data)
+#     num_training_data = len(expert_obses)
+#     itemp = 1/np.log(num_training_data)
 
-    loss_trace, distances, acceptance_probs = run_sgld(
-        _rng, 
-        loss_fn, 
-        sgld_config, 
-        network_params, 
-        expert_obses, 
-        expert_logitses, 
-        itemp = itemp, 
-        trace_batch_loss = True, 
-        compute_distance = False, 
-        verbose = False
-    )
+#     loss_trace, distances, acceptance_probs = run_sgld(
+#         _rng, 
+#         loss_fn, 
+#         sgld_config, 
+#         network_params, 
+#         expert_obses, 
+#         expert_logitses, 
+#         itemp = itemp, 
+#         trace_batch_loss = True, 
+#         compute_distance = False, 
+#         verbose = False
+#     )
 
-    init_loss = loss_fn(network_params, expert_obses, expert_logitses)
-    lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
-    with open(f"/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats/{model_no}.pkl", "wb") as f:
-        pickle.dump(lambdahat, f)
-    # plt.plot(loss_trace)
-    # plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/trace_curves/{model_no}.png")
-    # plt.close()
+#     init_loss = loss_fn(network_params, expert_obses, expert_logitses)
+#     lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
+#     with open(f"/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats/{model_no}.pkl", "wb") as f:
+#         pickle.dump(lambdahat, f)
+#     # plt.plot(loss_trace)
+#     # plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/trace_curves/{model_no}.png")
+#     # plt.close()
 
-# %%
-import numpy as np
-import matplotlib.pyplot as plt
-import pickle
-from tqdm import tqdm
-num_models = 1525
+# # %%
+# import numpy as np
+# import matplotlib.pyplot as plt
+# import pickle
+# from tqdm import tqdm
+# num_models = 1525
 
-print("loading lambdahats")
-lambdahats = list()
-for modelno in tqdm(range(0, num_models, 300)):
-    with open(f"/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats/{modelno}.pkl", "rb") as f:
-        lambdahat = pickle.load(f)
-    lambdahats.append(lambdahat)
-plt.plot(lambdahats)
-plt.show()
-# %%
+# print("loading lambdahats")
+# lambdahats = list()
+# for modelno in tqdm(range(0, num_models, 300)):
+#     with open(f"/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats/{modelno}.pkl", "rb") as f:
+#         lambdahat = pickle.load(f)
+#     lambdahats.append(lambdahat)
+# plt.plot(lambdahats)
+# plt.show()
+# # %%

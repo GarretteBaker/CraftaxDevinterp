@@ -32,7 +32,8 @@ dependencies = [
     "chex",
     "matplotlib",
     "imageio",
-    "dm-haiku"
+    "dm-haiku", 
+    "seaborn"
 ]
 
 [project.scripts]
