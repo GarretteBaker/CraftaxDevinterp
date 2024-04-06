@@ -164,8 +164,8 @@ for i, epsilon in tqdm(enumerate(np.logspace(eps_lower_pow, eps_upper_pow, num=n
         lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
         axs[i, j].plot(loss_trace)
         axs[i, j].set_title(f"epsilon {epsilon}, gamma {gamma}, lambda {lambdahat}")
-plt.tight_layout("/workspace/CraftaxDevinterp/llc_estimation/debug/calibration.png")
-plt.savefig()
+plt.tight_layout()
+plt.savefig("/workspace/CraftaxDevinterp/llc_estimation/debug/calibration.png")
 #%%
 
 # os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug/trace_curves", exist_ok = True)
