@@ -292,7 +292,7 @@ for model_no in tqdm(range(0, num_models, 300)):
                                                 params=network_params,
                                                 tx=optimizer)
 
-    trained_state, losses = train_model(model_state, teacher_dataloader, num_epochs=500)
+    trained_state, losses = jit_train_model(model_state) # NOTE: ALTER NUM EPOCHS ABOVE TO FIT NEEDS
     network_params = trained_state.params
 
     num_training_data = len(expert_obses)
