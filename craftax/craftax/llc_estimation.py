@@ -159,9 +159,9 @@ teacher_dataloader = data.DataLoader(teacher_dataset, batch_size = 128, shuffle=
 
 optimizer = optax.sgd(learning_rate=1e-4)
 
-model_state = train_state.TrainState.create(apply_fn=network.apply,
-                                            params=network_params,
-                                            tx=optimizer)
+# model_state = train_state.TrainState.create(apply_fn=network.apply,
+#                                             params=network_params,
+#                                             tx=optimizer)
 
 @jax.jit
 def train_step(state, batch):
@@ -219,56 +219,56 @@ def jit_train_model(state):
     state, losses = jax.lax.scan(train_epoch, state, None, length=num_epochs)
     return state, losses
 
-trained_state, losses = jit_train_model(model_state)
+# trained_state, losses = jit_train_model(model_state)
 
-plt.plot(losses.flatten())
-plt.show()
-trained_params = trained_state.params
+# plt.plot(losses.flatten())
+# plt.show()
+# trained_params = trained_state.params
 #%%
-eps_lower_pow = -3
-eps_upper_pow = -7
-num_eps = int(abs(eps_upper_pow - eps_lower_pow)) + 1
+# eps_lower_pow = -3
+# eps_upper_pow = -7
+# num_eps = int(abs(eps_upper_pow - eps_lower_pow)) + 1
 
-gam_lower_pow = -3
-gam_upper_pow = 4
-num_gam = int(gam_upper_pow - gam_lower_pow) + 1
+# gam_lower_pow = -3
+# gam_upper_pow = 4
+# num_gam = int(gam_upper_pow - gam_lower_pow) + 1
 
-os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug", exist_ok=True)
-fig, axs = plt.subplots(num_eps, num_gam, figsize=(16*num_eps, 16*num_gam))
-for i, epsilon in tqdm(enumerate(np.logspace(eps_lower_pow, eps_upper_pow, num=num_eps, base=10)), desc="Epsilon", total=num_eps):
-    for j, gamma in tqdm(enumerate(np.logspace(gam_lower_pow, gam_upper_pow, num=num_gam, base=10)), desc="Gamma", total=num_gam):
-        sgld_config = SGLDConfig(
-            epsilon = epsilon, 
-            gamma = gamma, 
-            num_steps = 1000, 
-            num_chains = 1,
-            batch_size = 64)
+# os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug", exist_ok=True)
+# fig, axs = plt.subplots(num_eps, num_gam, figsize=(16*num_eps, 16*num_gam))
+# for i, epsilon in tqdm(enumerate(np.logspace(eps_lower_pow, eps_upper_pow, num=num_eps, base=10)), desc="Epsilon", total=num_eps):
+#     for j, gamma in tqdm(enumerate(np.logspace(gam_lower_pow, gam_upper_pow, num=num_gam, base=10)), desc="Gamma", total=num_gam):
+#         sgld_config = SGLDConfig(
+#             epsilon = epsilon, 
+#             gamma = gamma, 
+#             num_steps = 1000, 
+#             num_chains = 1,
+#             batch_size = 64)
 
-        num_models = 1525
+#         num_models = 1525
 
-        num_training_data = len(expert_obses)
-        itemp = 1/np.log(num_training_data)
+#         num_training_data = len(expert_obses)
+#         itemp = 1/np.log(num_training_data)
 
-        loss_trace, distances, acceptance_probs = run_sgld(
-            rng_sgld, 
-            loss_fn, 
-            sgld_config, 
-            trained_params, 
-            expert_obses, 
-            expert_logitses, 
-            itemp = itemp, 
-            trace_batch_loss = True, 
-            compute_distance = False, 
-            verbose = False
-        )
+#         loss_trace, distances, acceptance_probs = run_sgld(
+#             rng_sgld, 
+#             loss_fn, 
+#             sgld_config, 
+#             trained_params, 
+#             expert_obses, 
+#             expert_logitses, 
+#             itemp = itemp, 
+#             trace_batch_loss = True, 
+#             compute_distance = False, 
+#             verbose = False
+#         )
 
-        init_loss = loss_fn(trained_params, expert_obses, expert_logitses)
-        lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
-        axs[i, j].plot(loss_trace)
-        axs[i, j].axhline(y=init_loss, linestyle=':')
-        axs[i, j].set_title(f"epsilon {epsilon}, gamma {gamma}, lambda {lambdahat}, mala {np.mean(np.array(acceptance_probs)[:, 1])}")
-plt.tight_layout()
-plt.savefig("/workspace/CraftaxDevinterp/llc_estimation/debug/calibration2.png")
+#         init_loss = loss_fn(trained_params, expert_obses, expert_logitses)
+#         lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
+#         axs[i, j].plot(loss_trace)
+#         axs[i, j].axhline(y=init_loss, linestyle=':')
+#         axs[i, j].set_title(f"epsilon {epsilon}, gamma {gamma}, lambda {lambdahat}, mala {np.mean(np.array(acceptance_probs)[:, 1])}")
+# plt.tight_layout()
+# plt.savefig("/workspace/CraftaxDevinterp/llc_estimation/debug/calibration2.png")
 # #%%
 # import time
 # t0 = time.time()
@@ -330,16 +330,16 @@ plt.savefig("/workspace/CraftaxDevinterp/llc_estimation/debug/calibration2.png")
 #%%
 
 sgld_config = SGLDConfig(
-    epsilon = 0.0001, 
-    gamma = 0.01, 
+    epsilon = 1e-4, 
+    gamma = 1, 
     num_steps = 1000, 
     num_chains = 1,
     batch_size = 64)
 
-
+num_models = 1525
 os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug/trace_curves", exist_ok = True)
 os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats", exist_ok=True)
-for model_no in tqdm(range(0, num_models, 300)):
+for model_no in tqdm(range(0, num_models, 1)):
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"
     checkpointer = ocp.StandardCheckpointer()
     folder_list = os.listdir(checkpoint_directory)
@@ -374,9 +374,10 @@ for model_no in tqdm(range(0, num_models, 300)):
     lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
     with open(f"/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats/{model_no}.pkl", "wb") as f:
         pickle.dump(lambdahat, f)
-    # plt.plot(loss_trace)
-    # plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/trace_curves/{model_no}.png")
-    # plt.close()
+    plt.plot(loss_trace)
+    plt.axhline(y=init_loss, linestyle=':')
+    plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/debug/trace_curves/{model_no}.png")
+    plt.close()
 
 # %%
 import numpy as np
@@ -387,7 +388,7 @@ num_models = 1525
 
 print("loading lambdahats")
 lambdahats = list()
-for modelno in tqdm(range(0, num_models, 300)):
+for modelno in tqdm(range(0, num_models, 1)):
     with open(f"/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats/{modelno}.pkl", "rb") as f:
         lambdahat = pickle.load(f)
     lambdahats.append(lambdahat)
