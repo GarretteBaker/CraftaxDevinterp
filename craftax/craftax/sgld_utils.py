@@ -102,6 +102,59 @@ def run_sgld(rngkey, loss_fn, sgld_config, param_init, x_train, y_train, itemp=N
     return loss_trace, distances, accept_probs
 
 
+# DON'T USE, SLOWER THAN NORMAL
+def run_sgld_with_scan(rngkey, loss_fn, sgld_config, param_init, x_train, y_train, itemp=None, trace_batch_loss=True, compute_distance=False, verbose=False):
+    num_training_data = len(x_train)
+    if itemp is None:
+        itemp = 1 / jnp.log(num_training_data)
+    local_logprob = create_local_logposterior(
+        avgnegloglikelihood_fn=loss_fn,
+        num_training_data=num_training_data,
+        w_init=param_init,
+        gamma=sgld_config.gamma,
+        itemp=itemp,
+    )
+    sgld_grad_fn = jax.jit(jax.value_and_grad(lambda w, x, y: -local_logprob(w, x, y), argnums=0))
+    
+    sgldoptim = optim_sgld(sgld_config.epsilon, rngkey)
+    loss_trace = []
+    distances = []
+    accept_probs = []
+    opt_state = sgldoptim.init(param_init)
+    param = param_init
+    batch_size = sgld_config.batch_size
+
+    @jax.jit
+    def sgld_step(optstateparam, unused):
+        opt_state, param = optstateparam
+        i = 0
+        def inner_loop(carry, unused):
+            i, param, opt_state = carry
+            x_batch = jax.lax.dynamic_slice( # TODO: possibly modify these to have randomness, can just replace i with random int
+                x_train, 
+                (i * batch_size, 0, 0), 
+                (batch_size, x_train.shape[1], x_train.shape[2])
+            )
+            y_batch = jax.lax.dynamic_slice(
+                y_train, 
+                (i * batch_size, 0, 0), 
+                (batch_size, y_train.shape[1], y_train.shape[2])
+            )
+            _, grads = sgld_grad_fn(param, x_batch, y_batch)
+            updates, opt_state = sgldoptim.update(grads, opt_state)
+            param = optax.apply_updates(param, updates)
+            loss = loss_fn(param, x_train, y_train)
+            return (i+1, param, opt_state), loss
+        (i, param, opt_state), losses = jax.lax.scan(
+            inner_loop, (i, param, opt_state), jnp.arange(x_train.shape[0]//batch_size)
+        )
+        return (opt_state, param), losses
+    (opt_state, param), losses = jax.lax.scan(
+        sgld_step, (opt_state, param), None, length = sgld_config.num_steps
+    )
+    return losses
+
+
 def generate_rngkey_tree(key_or_seed, tree_or_treedef):
     rngseq = hk.PRNGSequence(key_or_seed)
     return jtree.tree_map(lambda _: next(rngseq), tree_or_treedef)

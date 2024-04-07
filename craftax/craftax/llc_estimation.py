@@ -18,7 +18,8 @@ from craftax.craftax.envs.craftax_symbolic_env import CraftaxSymbolicEnv
 import os
 from sgld_utils import (
     SGLDConfig, 
-    run_sgld
+    run_sgld, 
+    run_sgld_with_scan
 )
 import numpy as np
 import matplotlib.pyplot as plt
@@ -206,7 +207,7 @@ num_epochs=1e3
 def jit_train_model(state):
     def train_epoch(state, unused):
         i = 0
-        def train_batch(carry, batch_no):
+        def train_batch(carry, unused):
             i, state = carry
             obs = jax.lax.dynamic_slice(expert_obses, (i * batch_size, 0, 0), (batch_size, expert_obses.shape[1], expert_obses.shape[2]))
             act = jax.lax.dynamic_slice(expert_logitses, (i * batch_size, 0, 0), (batch_size, expert_logitses.shape[1], expert_logitses.shape[2]))
@@ -252,7 +253,7 @@ for i, epsilon in tqdm(enumerate(np.logspace(eps_lower_pow, eps_upper_pow, num=n
             rng_sgld, 
             loss_fn, 
             sgld_config, 
-            network_params, 
+            trained_params, 
             expert_obses, 
             expert_logitses, 
             itemp = itemp, 
@@ -261,13 +262,71 @@ for i, epsilon in tqdm(enumerate(np.logspace(eps_lower_pow, eps_upper_pow, num=n
             verbose = False
         )
 
-        init_loss = loss_fn(network_params, expert_obses, expert_logitses)
+        init_loss = loss_fn(trained_params, expert_obses, expert_logitses)
         lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
         axs[i, j].plot(loss_trace)
         axs[i, j].axhline(y=init_loss, linestyle=':')
         axs[i, j].set_title(f"epsilon {epsilon}, gamma {gamma}, lambda {lambdahat}, mala {np.mean(np.array(acceptance_probs)[:, 1])}")
 plt.tight_layout()
 plt.savefig("/workspace/CraftaxDevinterp/llc_estimation/debug/calibration2.png")
+# #%%
+# import time
+# t0 = time.time()
+# sgld_config = SGLDConfig(
+#     epsilon = 1e-5, 
+#     gamma = 100, 
+#     num_steps = 10000, 
+#     num_chains = 1,
+#     batch_size = 64)
+
+# num_training_data = len(expert_obses)
+# itemp = 1/np.log(num_training_data)
+
+# loss_trace = run_sgld_with_scan(
+#     rng_sgld, 
+#     loss_fn, 
+#     sgld_config, 
+#     trained_params, 
+#     expert_obses, 
+#     expert_logitses, 
+#     itemp = itemp, 
+#     trace_batch_loss = True, 
+#     compute_distance = False, 
+#     verbose = False
+# )
+
+# init_loss = loss_fn(trained_params, expert_obses, expert_logitses)
+# lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
+# print(f"Time to run scanned sgld: {time.time() - t0}")
+
+# t0 = time.time()
+# sgld_config = SGLDConfig(
+#     epsilon = 1e-5, 
+#     gamma = 100, 
+#     num_steps = 10000, 
+#     num_chains = 1,
+#     batch_size = 64)
+
+# num_training_data = len(expert_obses)
+# itemp = 1/np.log(num_training_data)
+
+# loss_trace, distances, acceptance_probs = run_sgld(
+#     rng_sgld, 
+#     loss_fn, 
+#     sgld_config, 
+#     trained_params, 
+#     expert_obses, 
+#     expert_logitses, 
+#     itemp = itemp, 
+#     trace_batch_loss = True, 
+#     compute_distance = False, 
+#     verbose = False
+# )
+
+# init_loss = loss_fn(trained_params, expert_obses, expert_logitses)
+# lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
+# print(f"Time to run unscanned sgld: {time.time() - t0}")
+
 #%%
 
 sgld_config = SGLDConfig(
