@@ -102,7 +102,7 @@ checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"
 checkpointer = ocp.StandardCheckpointer()
 folder_list = os.listdir(checkpoint_directory)
 network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-expert_obses_train, expert_logitses_train = jit_gen_traj_100(network_params, rng_train)
+# expert_obses_train, expert_logitses_train = jit_gen_traj_100(network_params, rng_train)
 expert_obses, expert_logitses = jit_gen_traj_495(network_params, rng_sgld)
 
 #%%
@@ -155,9 +155,9 @@ def numpy_collate(batch):
     else:
         return np.array(batch)
 
-teacher_dataloader = data.DataLoader(teacher_dataset, batch_size = 128, shuffle=True, collate_fn=numpy_collate, drop_last=True)
+# teacher_dataloader = data.DataLoader(teacher_dataset, batch_size = 128, shuffle=True, collate_fn=numpy_collate, drop_last=True)
 
-optimizer = optax.sgd(learning_rate=1e-4)
+# optimizer = optax.sgd(learning_rate=1e-4)
 
 # model_state = train_state.TrainState.create(apply_fn=network.apply,
 #                                             params=network_params,
@@ -200,31 +200,31 @@ def train_model(state, dataloader, num_epochs=1):
 # teacher_array_acts = np.array(teacher_array_acts)
 
 
-#%%
-batch_size = 128
-num_epochs=1e3
-@jax.jit
-def jit_train_model(state):
-    def train_epoch(state, unused):
-        i = 0
-        def train_batch(carry, unused):
-            i, state = carry
-            obs = jax.lax.dynamic_slice(expert_obses, (i * batch_size, 0, 0), (batch_size, expert_obses.shape[1], expert_obses.shape[2]))
-            act = jax.lax.dynamic_slice(expert_logitses, (i * batch_size, 0, 0), (batch_size, expert_logitses.shape[1], expert_logitses.shape[2]))
-            batch = obs, act
-            state, loss = train_step(state, batch)
-            return (i+1, state), loss
-        (i, state), loss = jax.lax.scan(train_batch, (i, state), jnp.arange(expert_obses.shape[0]//batch_size))
-        return state, jnp.mean(loss)
-    state, losses = jax.lax.scan(train_epoch, state, None, length=num_epochs)
-    return state, losses
+# #%%
+# batch_size = 128
+# num_epochs=1e3
+# @jax.jit
+# def jit_train_model(state):
+#     def train_epoch(state, unused):
+#         i = 0
+#         def train_batch(carry, unused):
+#             i, state = carry
+#             obs = jax.lax.dynamic_slice(expert_obses, (i * batch_size, 0, 0), (batch_size, expert_obses.shape[1], expert_obses.shape[2]))
+#             act = jax.lax.dynamic_slice(expert_logitses, (i * batch_size, 0, 0), (batch_size, expert_logitses.shape[1], expert_logitses.shape[2]))
+#             batch = obs, act
+#             state, loss = train_step(state, batch)
+#             return (i+1, state), loss
+#         (i, state), loss = jax.lax.scan(train_batch, (i, state), jnp.arange(expert_obses.shape[0]//batch_size))
+#         return state, jnp.mean(loss)
+#     state, losses = jax.lax.scan(train_epoch, state, None, length=num_epochs)
+#     return state, losses
 
 # trained_state, losses = jit_train_model(model_state)
 
 # plt.plot(losses.flatten())
 # plt.show()
 # trained_params = trained_state.params
-#%%
+# #%%
 # eps_lower_pow = -3
 # eps_upper_pow = -7
 # num_eps = int(abs(eps_upper_pow - eps_lower_pow)) + 1
@@ -247,13 +247,13 @@ def jit_train_model(state):
 #         num_models = 1525
 
 #         num_training_data = len(expert_obses)
-#         itemp = 1/np.log(num_training_data)
+#         itemp = 1e-4
 
-#         loss_trace, distances, acceptance_probs = run_sgld(
+#         loss_trace, _, acceptance_probs = run_sgld(
 #             rng_sgld, 
 #             loss_fn, 
 #             sgld_config, 
-#             trained_params, 
+#             network_params, 
 #             expert_obses, 
 #             expert_logitses, 
 #             itemp = itemp, 
@@ -262,7 +262,7 @@ def jit_train_model(state):
 #             verbose = False
 #         )
 
-#         init_loss = loss_fn(trained_params, expert_obses, expert_logitses)
+#         init_loss = loss_fn(network_params, expert_obses, expert_logitses)
 #         lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
 #         axs[i, j].plot(loss_trace)
 #         axs[i, j].axhline(y=init_loss, linestyle=':')
@@ -294,27 +294,29 @@ def jit_train_model(state):
 #     compute_distance = False, 
 #     verbose = False
 # )
-
 # init_loss = loss_fn(trained_params, expert_obses, expert_logitses)
 # lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
 # print(f"Time to run scanned sgld: {time.time() - t0}")
+# plt.plot(loss_trace)
+# plt.show()
 
+# #%%
 # t0 = time.time()
 # sgld_config = SGLDConfig(
-#     epsilon = 1e-5, 
+#     epsilon = 1e-4, 
 #     gamma = 100, 
-#     num_steps = 10000, 
+#     num_steps = 1000, 
 #     num_chains = 1,
 #     batch_size = 64)
 
 # num_training_data = len(expert_obses)
-# itemp = 1/np.log(num_training_data)
+# itemp = 1e-4
 
 # loss_trace, distances, acceptance_probs = run_sgld(
 #     rng_sgld, 
 #     loss_fn, 
 #     sgld_config, 
-#     trained_params, 
+#     network_params, 
 #     expert_obses, 
 #     expert_logitses, 
 #     itemp = itemp, 
@@ -323,15 +325,17 @@ def jit_train_model(state):
 #     verbose = False
 # )
 
-# init_loss = loss_fn(trained_params, expert_obses, expert_logitses)
+# init_loss = loss_fn(network_params, expert_obses, expert_logitses)
 # lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
 # print(f"Time to run unscanned sgld: {time.time() - t0}")
-
+# print(f"epsilon {1e-5}, gamma {100}, lambda {lambdahat}, mala {np.mean(np.array(acceptance_probs)[:, 1])}")
+# plt.plot(loss_trace)
+# plt.show()
 #%%
 
 sgld_config = SGLDConfig(
     epsilon = 1e-4, 
-    gamma = 1, 
+    gamma = .1, 
     num_steps = 1000, 
     num_chains = 1,
     batch_size = 64)
@@ -351,11 +355,9 @@ for model_no in tqdm(range(0, num_models, 1)):
                                                 params=network_params,
                                                 tx=optimizer)
 
-    trained_state, losses = jit_train_model(model_state) # NOTE: ALTER NUM EPOCHS ABOVE TO FIT NEEDS
-    network_params = trained_state.params
 
     num_training_data = len(expert_obses)
-    itemp = 1/np.log(num_training_data)
+    itemp = 1e-4
 
     loss_trace, distances, acceptance_probs = run_sgld(
         rng_sgld, 
@@ -392,6 +394,7 @@ for modelno in tqdm(range(0, num_models, 1)):
     with open(f"/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats/{modelno}.pkl", "rb") as f:
         lambdahat = pickle.load(f)
     lambdahats.append(lambdahat)
+
 plt.plot(lambdahats)
 plt.show()
 # %%
