@@ -224,52 +224,55 @@ def train_model(state, dataloader, num_epochs=1):
 # plt.plot(losses.flatten())
 # plt.show()
 # trained_params = trained_state.params
-# #%%
-# eps_lower_pow = -3
-# eps_upper_pow = -7
-# num_eps = int(abs(eps_upper_pow - eps_lower_pow)) + 1
+#%%
+# beta_lower_pow = 0
+# beta_upper_pow = -7
+# num_beta = int(abs(beta_upper_pow - beta_lower_pow)) + 1
+
+# eps_lower_pow = -4
+# eps_upper_pow = -11
+# num_eps = int(abs(eps_lower_pow - eps_upper_pow)) + 1
 
 # gam_lower_pow = -3
 # gam_upper_pow = 4
 # num_gam = int(gam_upper_pow - gam_lower_pow) + 1
 
 # os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug", exist_ok=True)
-# fig, axs = plt.subplots(num_eps, num_gam, figsize=(16*num_eps, 16*num_gam))
-# for i, epsilon in tqdm(enumerate(np.logspace(eps_lower_pow, eps_upper_pow, num=num_eps, base=10)), desc="Epsilon", total=num_eps):
-#     for j, gamma in tqdm(enumerate(np.logspace(gam_lower_pow, gam_upper_pow, num=num_gam, base=10)), desc="Gamma", total=num_gam):
-#         sgld_config = SGLDConfig(
-#             epsilon = epsilon, 
-#             gamma = gamma, 
-#             num_steps = 1000, 
-#             num_chains = 1,
-#             batch_size = 64)
+# fig, axs = plt.subplots(num_beta, num_gam, figsize=(16*num_beta, 16*num_gam))
+# for k, epsilon in tqdm(enumerate(np.logspace(eps_lower_pow, eps_upper_pow, num=num_eps, base=10)), desc="Epsilon", total=num_eps):
+#     for i, beta in tqdm(enumerate(np.logspace(beta_lower_pow, beta_upper_pow, num=num_beta, base=10)), desc="Beta", total=num_beta):
+#         for j, gamma in tqdm(enumerate(np.logspace(gam_lower_pow, gam_upper_pow, num=num_gam, base=10)), desc="Gamma", total=num_gam):
+#             sgld_config = SGLDConfig(
+#                 epsilon = epsilon, 
+#                 gamma = gamma, 
+#                 num_steps = 10000, 
+#                 num_chains = 1,
+#                 batch_size = 64)
 
-#         num_models = 1525
+#             num_training_data = len(expert_obses)
+#             itemp = beta
 
-#         num_training_data = len(expert_obses)
-#         itemp = 1e-4
+#             loss_trace, _, acceptance_probs = run_sgld(
+#                 rng_sgld, 
+#                 loss_fn, 
+#                 sgld_config, 
+#                 network_params, 
+#                 expert_obses, 
+#                 expert_logitses, 
+#                 itemp = itemp, 
+#                 trace_batch_loss = True, 
+#                 compute_distance = False, 
+#                 verbose = False
+#             )
 
-#         loss_trace, _, acceptance_probs = run_sgld(
-#             rng_sgld, 
-#             loss_fn, 
-#             sgld_config, 
-#             network_params, 
-#             expert_obses, 
-#             expert_logitses, 
-#             itemp = itemp, 
-#             trace_batch_loss = True, 
-#             compute_distance = False, 
-#             verbose = False
-#         )
-
-#         init_loss = loss_fn(network_params, expert_obses, expert_logitses)
-#         lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
-#         axs[i, j].plot(loss_trace)
-#         axs[i, j].axhline(y=init_loss, linestyle=':')
-#         axs[i, j].set_title(f"epsilon {epsilon}, gamma {gamma}, lambda {lambdahat}, mala {np.mean(np.array(acceptance_probs)[:, 1])}")
-# plt.tight_layout()
-# plt.savefig("/workspace/CraftaxDevinterp/llc_estimation/debug/calibration2.png")
-# #%%
+#             init_loss = loss_fn(network_params, expert_obses, expert_logitses)
+#             lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
+#             axs[i, j].plot(loss_trace)
+#             axs[i, j].axhline(y=init_loss, linestyle=':')
+#             axs[i, j].set_title(f"epsilon {epsilon}, beta {beta}, gamma {gamma}, lambda {lambdahat}, mala {np.mean(np.array(acceptance_probs)[:, 1])}")
+#     plt.tight_layout()
+#     plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/debug/calibration_eps_{epsilon}.png")
+#%%
 # import time
 # t0 = time.time()
 # sgld_config = SGLDConfig(
@@ -300,64 +303,56 @@ def train_model(state, dataloader, num_epochs=1):
 # plt.plot(loss_trace)
 # plt.show()
 
-# #%%
-# t0 = time.time()
-# sgld_config = SGLDConfig(
-#     epsilon = 1e-4, 
-#     gamma = 100, 
-#     num_steps = 1000, 
-#     num_chains = 1,
-#     batch_size = 64)
-
-# num_training_data = len(expert_obses)
-# itemp = 1e-4
-
-# loss_trace, distances, acceptance_probs = run_sgld(
-#     rng_sgld, 
-#     loss_fn, 
-#     sgld_config, 
-#     network_params, 
-#     expert_obses, 
-#     expert_logitses, 
-#     itemp = itemp, 
-#     trace_batch_loss = True, 
-#     compute_distance = False, 
-#     verbose = False
-# )
-
-# init_loss = loss_fn(network_params, expert_obses, expert_logitses)
-# lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
-# print(f"Time to run unscanned sgld: {time.time() - t0}")
-# print(f"epsilon {1e-5}, gamma {100}, lambda {lambdahat}, mala {np.mean(np.array(acceptance_probs)[:, 1])}")
-# plt.plot(loss_trace)
-# plt.show()
 #%%
+# import time
+# for i in tqdm(range(5)):
+#     sgld_config = SGLDConfig(
+#         epsilon = 1e-4, 
+#         gamma = 10.0, 
+#         num_steps = 3000, 
+#         num_chains = 1,
+#         batch_size = 64)
+
+#     num_training_data = len(expert_obses)
+#     itemp = 0.01
+
+#     loss_trace, distances, acceptance_probs = run_sgld(
+#         rng_sgld, 
+#         loss_fn, 
+#         sgld_config, 
+#         network_params, 
+#         expert_obses, 
+#         expert_logitses, 
+#         itemp = itemp, 
+#         trace_batch_loss = True, 
+#         compute_distance = False, 
+#         verbose = False
+#     )
+
+#     init_loss = loss_fn(network_params, expert_obses, expert_logitses)
+#     lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
+#     plt.plot(loss_trace)
+# plt.show()
+# #%%
 
 sgld_config = SGLDConfig(
     epsilon = 1e-4, 
-    gamma = .1, 
-    num_steps = 1000, 
+    gamma = 10, 
+    num_steps = 3000, 
     num_chains = 1,
     batch_size = 64)
 
 num_models = 1525
 os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug/trace_curves", exist_ok = True)
 os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats", exist_ok=True)
-for model_no in tqdm(range(0, num_models, 1)):
+for model_no in tqdm(range(0, num_models, 300)):
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"
     checkpointer = ocp.StandardCheckpointer()
     folder_list = os.listdir(checkpoint_directory)
     network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
-    optimizer = optax.sgd(learning_rate=1e-4)
-
-    model_state = train_state.TrainState.create(apply_fn=network.apply,
-                                                params=network_params,
-                                                tx=optimizer)
-
-
     num_training_data = len(expert_obses)
-    itemp = 1e-4
+    itemp = 0.01
 
     loss_trace, distances, acceptance_probs = run_sgld(
         rng_sgld, 
@@ -378,10 +373,11 @@ for model_no in tqdm(range(0, num_models, 1)):
         pickle.dump(lambdahat, f)
     plt.plot(loss_trace)
     plt.axhline(y=init_loss, linestyle=':')
+    plt.title(f"lambda {lambdahat}, mala {np.mean(np.array(acceptance_probs)[:, 1])}")
     plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/debug/trace_curves/{model_no}.png")
     plt.close()
 
-# %%
+# # %%
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
@@ -390,11 +386,11 @@ num_models = 1525
 
 print("loading lambdahats")
 lambdahats = list()
-for modelno in tqdm(range(0, num_models, 1)):
+for modelno in tqdm(range(0, num_models, 300)):
     with open(f"/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats/{modelno}.pkl", "rb") as f:
         lambdahat = pickle.load(f)
     lambdahats.append(lambdahat)
 
 plt.plot(lambdahats)
 plt.show()
-# %%
+# # %%
