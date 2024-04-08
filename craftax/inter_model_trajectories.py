@@ -823,6 +823,10 @@ _jitted_render_pixels = jax.jit(render_craftax_pixels)
 #         with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
 #             pickle.dump(pixels, f)
         
+# TODO: Figure out mobs in in ocean
+# TODO: Use initial map as "mean"
+# TODO: Smooth trainshift redshift
+
 def rgb_to_yiq(rgb):
     """
     Convert an RGB image to the YIQ color space.

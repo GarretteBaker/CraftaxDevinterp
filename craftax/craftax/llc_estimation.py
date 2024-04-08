@@ -333,7 +333,7 @@ def train_model(state, dataloader, num_epochs=1):
 #     lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
 #     plt.plot(loss_trace)
 # plt.show()
-# #%%
+#%%
 
 sgld_config = SGLDConfig(
     epsilon = 1e-4, 
@@ -345,7 +345,9 @@ sgld_config = SGLDConfig(
 num_models = 1525
 os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug/trace_curves", exist_ok = True)
 os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats", exist_ok=True)
-for model_no in tqdm(range(0, num_models, 300)):
+os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/debug/trace_data", exist_ok=True)
+
+for model_no in tqdm(range(0, num_models, 1)):
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"
     checkpointer = ocp.StandardCheckpointer()
     folder_list = os.listdir(checkpoint_directory)
@@ -371,26 +373,28 @@ for model_no in tqdm(range(0, num_models, 300)):
     lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
     with open(f"/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats/{model_no}.pkl", "wb") as f:
         pickle.dump(lambdahat, f)
+    with open(f"/workspace/CraftaxDevinterp/llc_estimation/debug/trace_data/{model_no}.pkl", "wb") as f:
+        pickle.dump((loss_trace, distances, acceptance_probs), f)
     plt.plot(loss_trace)
     plt.axhline(y=init_loss, linestyle=':')
     plt.title(f"lambda {lambdahat}, mala {np.mean(np.array(acceptance_probs)[:, 1])}")
     plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/debug/trace_curves/{model_no}.png")
     plt.close()
 
-# # %%
+# %%
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 from tqdm import tqdm
-num_models = 1525
+num_models = 173
 
 print("loading lambdahats")
 lambdahats = list()
-for modelno in tqdm(range(0, num_models, 300)):
+for modelno in tqdm(range(0, num_models, 1)):
     with open(f"/workspace/CraftaxDevinterp/llc_estimation/debug/lambdahats/{modelno}.pkl", "rb") as f:
         lambdahat = pickle.load(f)
     lambdahats.append(lambdahat)
 
 plt.plot(lambdahats)
 plt.show()
-# # %%
+# %%
