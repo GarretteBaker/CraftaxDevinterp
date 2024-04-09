@@ -18,6 +18,7 @@ import os
 from tqdm import tqdm
 from craftax.craftax.full_view_constants import *
 from craftax.craftax.craftax_state import EnvState
+from craftax.craftax import renderer
 from craftax.craftax.util.game_logic_utils import is_boss_vulnerable
 import matplotlib.pyplot as plt
 import pickle
@@ -229,7 +230,7 @@ def render_craftax_pixels(state, do_night_noise=False):
 
         local_position = (
             mobs.position[state.player_level, mob_index]
-            + jnp.ones((2,), dtype=jnp.int32) * (obs_dim_array // 2)
+            # + jnp.ones((2,), dtype=jnp.int32) * (obs_dim_array // 2)
         )
         on_screen = jnp.logical_and(
             local_position >= 0, local_position < obs_dim_array
@@ -312,8 +313,8 @@ def render_craftax_pixels(state, do_night_noise=False):
         pixels, projectiles, projectile_directions = carry
         local_position = (
             projectiles.position[state.player_level, projectile_index]
-            - state.player_position
-            + jnp.ones((2,), dtype=jnp.int32) * (obs_dim_array // 2)
+            # - state.player_position
+            # + jnp.ones((2,), dtype=jnp.int32) * (obs_dim_array // 2)
         )
         on_screen = jnp.logical_and(
             local_position >= 0, local_position < obs_dim_array
@@ -819,6 +820,7 @@ for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progr
     trajectory, done = jit_gen_traj(network_params, _rng)
     os.makedirs(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}", exist_ok=True)
     os.makedirs(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}", exist_ok=True)
+    os.makedirs(f"/workspace/CraftaxDevinterp/frames/states/trajectory_{trajectory_no}", exist_ok=True)
     with open(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}.pkl", "wb") as f:
         pickle.dump(done, f)
 
@@ -827,7 +829,10 @@ for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progr
         pixels = _jitted_render_pixels(state)/256
         with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
             pickle.dump(pixels, f)
-
+        with open(f"/workspace/CraftaxDevinterp/frames/states/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
+            pickle.dump(state, f)
+#%%
+frames_dir = "/workspace/CraftaxDevinterp/frames"
 # TODO: Figure out mobs in in ocean
 # TODO: Use initial map as "mean"
 # TODO: Smooth trainshift redshift
@@ -979,33 +984,53 @@ def create_composite_furthest_mean_shifted(images_stack, default_image):
             # Find the index of the image with the maximum distance
             max_distance_idx = np.argmax(distances)
 
-            shift_intensity = distances[max_distance_idx]/2
+            # shift_intensity = distances[max_distance_idx]/2
 
-
-            # Assign the pixel with the maximum distance to the output image
-            if max_distance_idx < len(images_stack) / 2:
-                # For earlier images, apply redshift
-                output_image_shifted[i, j, :] = redshift_image(images_stack[max_distance_idx, i, j, :].reshape(1, 1, 3), shift_intensity).reshape(3,)
+            if distances[max_distance_idx] < 1e-5:
+                shift_intensity = 0
             else:
-                # For later images, apply blueshift (negative redshift)
-                output_image_shifted[i, j, :] = redshift_image(images_stack[max_distance_idx, i, j, :].reshape(1, 1, 3), -shift_intensity).reshape(3,)
+                shift_intensity = - max_distance_idx / images_stack.shape[0] * 2 + 1
+                print(f"max_distance_idx: {max_distance_idx}")
+                print(f"Shift intensity: {shift_intensity}")
+                print()
+            # Assign the pixel with the maximum distance to the output image
+            # if max_distance_idx < len(images_stack) / 2:
+                # For earlier images, apply redshift
+            output_image_shifted[i, j, :] = redshift_image(images_stack[max_distance_idx, i, j, :].reshape(1, 1, 3), shift_intensity).reshape(3,)
+            # else:
+            #     # For later images, apply blueshift (negative redshift)
+            #     output_image_shifted[i, j, :] = redshift_image(images_stack[max_distance_idx, i, j, :].reshape(1, 1, 3), -shift_intensity).reshape(3,)
     return output_image_shifted
 
-# import cProfile
 
+# import cProfile
 # cProfile.run("create_composite_furthest_mean_shifted(images_stack)",sort=1)
-images_stack = get_image_stack(199, num_trajectories=num_trajectories)
-default_image = get_image_stack(0, num_trajectories=0)
+images_stack = get_image_stack(99, num_trajectories=num_trajectories)
+default_image = get_image_stack(0, num_trajectories=1)
 composite_image = create_composite_furthest_mean_shifted(images_stack, default_image)
 plt.imshow(composite_image)
 plt.show()
-# #%%
-
-# num_trajectories = 1525
-# num_frames = 200
-
 #%%
 
+
+#%%
+modelno = 20
+frame = 50
+for modelno in range(0, 1525, 20):
+    with open(f"{frames_dir}/pixels/trajectory_{modelno}/frame_{frame}.pkl", "rb") as f:
+        model_pixels = pickle.load(f)
+    with open(f"{frames_dir}/states/trajectory_{modelno}/frame_{frame}.pkl", "rb") as f:
+        state = pickle.load(f)
+    pixels_true = renderer.render_craftax_pixels(state, 64)/255
+    plt.imshow(pixels_true)
+    plt.title(f"True pixels {modelno}")
+    plt.show()
+
+    plt.imshow(model_pixels)
+    plt.title(f"Full pixels {modelno}")
+    plt.show()
+
+#%%
 for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progress"):
     checkpointer = ocp.StandardCheckpointer()
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{trajectory_no}"
