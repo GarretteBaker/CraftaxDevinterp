@@ -29,7 +29,7 @@ seed = 0
 num_trajectories = 1525
 rng = jax.random.PRNGKey(seed)
 rng, _rng = jax.random.split(rng)
-num_frames = 496
+num_frames = 100
 frames_dir = f"/workspace/CraftaxDevinterp/frames/{seed}"
 
 def generate_trajectory(network_params, rng, num_envs=1, num_steps=num_frames):
@@ -221,9 +221,14 @@ def render_craftax_pixels(state, do_night_noise=False):
 
     def _add_mob_to_pixels(carry, mob_index):
         pixels, mobs, texture_name, alpha_texture_name = carry
+        # local_position = (
+        #     mobs.position[state.player_level, mob_index]
+        #     - state.player_position
+        #     + jnp.ones((2,), dtype=jnp.int32) * (obs_dim_array // 2)
+        # )
+
         local_position = (
             mobs.position[state.player_level, mob_index]
-            - state.player_position
             + jnp.ones((2,), dtype=jnp.int32) * (obs_dim_array // 2)
         )
         on_screen = jnp.logical_and(
@@ -805,24 +810,24 @@ def render_craftax_pixels(state, do_night_noise=False):
 _jitted_render_pixels = jax.jit(render_craftax_pixels)
 
 #%%
-# for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progress"):
-#     checkpointer = ocp.StandardCheckpointer()
-#     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{trajectory_no}"
-#     folder_list = os.listdir(checkpoint_directory)
-#     network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progress"):
+    checkpointer = ocp.StandardCheckpointer()
+    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{trajectory_no}"
+    folder_list = os.listdir(checkpoint_directory)
+    network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
-#     trajectory, done = jit_gen_traj(network_params, _rng)
-#     os.makedirs(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}", exist_ok=True)
-#     os.makedirs(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}", exist_ok=True)
-#     with open(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}.pkl", "wb") as f:
-#         pickle.dump(done, f)
+    trajectory, done = jit_gen_traj(network_params, _rng)
+    os.makedirs(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}", exist_ok=True)
+    os.makedirs(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}", exist_ok=True)
+    with open(f"/workspace/CraftaxDevinterp/frames/dones/trajectory_{trajectory_no}.pkl", "wb") as f:
+        pickle.dump(done, f)
 
-#     for frame in tqdm(range(496), desc="Frame progress"):
-#         state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
-#         pixels = _jitted_render_pixels(state)/256
-#         with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
-#             pickle.dump(pixels, f)
-        
+    for frame in tqdm(range(num_frames), desc="Frame progress"):
+        state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
+        pixels = _jitted_render_pixels(state)/256
+        with open(f"/workspace/CraftaxDevinterp/frames/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
+            pickle.dump(pixels, f)
+
 # TODO: Figure out mobs in in ocean
 # TODO: Use initial map as "mean"
 # TODO: Smooth trainshift redshift
@@ -960,17 +965,17 @@ def get_image_stack(frame, num_trajectories):
     images_stack = np.array(full_pixels)
     return images_stack
 
-def create_composite_furthest_mean_shifted(images_stack):
-    mean_image = np.mean(images_stack, axis=0)
+def create_composite_furthest_mean_shifted(images_stack, default_image):
+    default_image = default_image[0, ...]
 
     # Initialize an array to hold the output image
-    output_image_shifted = np.zeros_like(mean_image)
+    output_image_shifted = np.zeros_like(default_image)
 
     # Iterate over each pixel
     for i in range(images_stack.shape[1]):  # height
         for j in range(images_stack.shape[2]):  # width
             # Calculate the Euclidean distance from the mean for each pixel in the stack
-            distances = np.linalg.norm(images_stack[:, i, j, :] - mean_image[i, j, :], axis=1)
+            distances = np.linalg.norm(images_stack[:, i, j, :] - default_image[i, j, :], axis=1)
             # Find the index of the image with the maximum distance
             max_distance_idx = np.argmax(distances)
 
@@ -989,10 +994,11 @@ def create_composite_furthest_mean_shifted(images_stack):
 # import cProfile
 
 # cProfile.run("create_composite_furthest_mean_shifted(images_stack)",sort=1)
-# images_stack = get_image_stack(199, num_trajectories=num_trajectories)
-# composite_image = create_composite_furthest_mean_shifted(images_stack)
-# plt.imshow(composite_image)
-# plt.show()
+images_stack = get_image_stack(199, num_trajectories=num_trajectories)
+default_image = get_image_stack(0, num_trajectories=0)
+composite_image = create_composite_furthest_mean_shifted(images_stack, default_image)
+plt.imshow(composite_image)
+plt.show()
 # #%%
 
 # num_trajectories = 1525
@@ -1012,7 +1018,7 @@ for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progr
     with open(f"{frames_dir}/dones/trajectory_{trajectory_no}.pkl", "wb") as f:
         pickle.dump(done, f)
 
-    for frame in tqdm(range(496), desc="Frame progress"):
+    for frame in tqdm(range(num_frames), desc="Frame progress"):
         state = jax.tree_util.tree_map(lambda x: x[frame, 0, ...], trajectory.env_state)
         pixels = _jitted_render_pixels(state)/256
         with open(f"{frames_dir}/pixels/trajectory_{trajectory_no}/frame_{frame}.pkl", "wb") as f:
