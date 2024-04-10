@@ -17,6 +17,7 @@ from craftax.craftax.craftax_state import EnvParams, StaticEnvParams
 from craftax.craftax.util.game_logic_utils import calculate_light_level
 from craftax.craftax.renderer import render_craftax_symbolic
 from craftax.models.actor_critic import ActorCritic
+from craftax.craftax.envs.craftax_symbolic_env import CraftaxSymbolicEnv
 
 
 def generate_test_world(
@@ -269,6 +270,25 @@ def generate_test_world(
 
     return state
 
+def optimized_experiment(
+        num_wood, 
+        num_water, 
+        network_params,
+        crafting_table=False, 
+        pickaxe=False, 
+        sword=False, 
+        torch = False # to implement
+):
+    network = ActorCritic(43, 512)
+    rng = jax.random.PRNGKey(seed=0)
+    custom_state = generate_test_world(rng, num_wood=num_wood, num_water=num_water, crafting_table=crafting_table, pickaxe=pickaxe, sword = sword)
+    obs = render_craftax_symbolic(custom_state)
+    pi, _ = network.apply(network_params, obs)
+    probs = pi.probs
+    return probs
+
+
+
 def run_experiment(env, env_state, models=1525, count_by=1):
     import os
     import orbax.checkpoint as ocp
@@ -410,16 +430,53 @@ def experiment_with_varied_water_and_wood(
         print(f"Interactive plot saved to {filename}")
 
 if __name__ == "__main__":
-    experiment_with_varied_water_and_wood(
-        wood_range = (0, 5), 
-        water_range = (0, 5), 
-        count_by=1, 
-        crafting_table=True, 
-        pickaxe=True, 
-        sword = True, 
-        plotting=False, 
-        save_dir = "/workspace/CraftaxDevinterp/ExperimentData/tree_water_table_pickaxe_sword/data"
-    )
+    import orbax.checkpoint as ocp
+    import os
+    import time
+    from tqdm import tqdm
+    import pickle
+
+    env = CraftaxSymbolicEnv()
+    env_params = env.default_params
+    checkpointer = ocp.StandardCheckpointer()
+    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{0}"
+    folder_list = os.listdir(checkpoint_directory)
+    network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+    # network_params = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 0), network_params)
+    experiment_mapped = jax.jit(jax.vmap(jax.vmap(lambda wood, water, params: optimized_experiment(wood, water, params), (0, 0, None)), (0, 0, None)))
+    wood_range = jnp.arange(0, 5, 1)
+    water_range = jnp.arange(0, 5, 1)
+    wood, water = jnp.meshgrid(wood_range, water_range)
+
+    t0 = time.time()
+    os.makedirs("/workspace/CraftaxDevinterp/ExperimentData/tree_water_table_pickaxe_sword/results", exist_ok=True)
+    for modelno in tqdm(range(1525)):
+        checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{modelno}"
+        folder_list = os.listdir(checkpoint_directory)
+        network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+        result = experiment_mapped(wood, water, network_params)
+        with open(f"/workspace/CraftaxDevinterp/ExperimentData/tree_water_table_pickaxe_sword/results/{modelno}.pkl", "wb") as f:
+            pickle.dump(result, f)
+    print(f"Time for mapped: {time.time() - t0}")
+
+    # t0 = time.time()
+    # results = list()
+    # for wood in wood_range:
+    #     result = optimized_experiment(wood, 0, network, network_params)
+    #     results.append(result)
+    # print(f"Time for unmapped: {time.time() - t0}")
+
+
+    # experiment_with_varied_water_and_wood(
+    #     wood_range = (0, 5), 
+    #     water_range = (0, 5), 
+    #     count_by=1, 
+    #     crafting_table=True, 
+    #     pickaxe=True, 
+    #     sword = True, 
+    #     plotting=False, 
+    #     save_dir = "/workspace/CraftaxDevinterp/ExperimentData/tree_water_table_pickaxe_sword/data"
+    # )
 
     # print("importing libraries...")
     # from craftax.craftax.renderer import render_craftax_pixels
