@@ -369,35 +369,35 @@ def experiment_with_varied_water_and_wood(
                 plt.plot(probs[:, 15], label="MAKE_STONE_SWORD")
                 plt.plot(probs[:, 16], label="MAKE_IRON_SWORD")
                 plt.plot(probs[:, 17], label="REST")
-                plt.plot(probs[:, 18], label="DESCEND")
-                plt.plot(probs[:, 19], label="ASCEND")
+                # plt.plot(probs[:, 18], label="DESCEND")
+                # plt.plot(probs[:, 19], label="ASCEND")
                 plt.plot(probs[:, 20], label="MAKE_DIAMOND_PICKAXE")
                 plt.plot(probs[:, 21], label="MAKE_DIAMOND_SWORD")
                 plt.plot(probs[:, 22], label="MAKE_IRON_ARMOUR")
                 plt.plot(probs[:, 23], label="MAKE_DIAMOND_ARMOUR")
-                plt.plot(probs[:, 24], label="SHOOT_ARROW")
+                # plt.plot(probs[:, 24], label="SHOOT_ARROW")
                 plt.plot(probs[:, 25], label="MAKE_ARROW")
-                plt.plot(probs[:, 26], label="CAST_FIREBALL")
-                plt.plot(probs[:, 27], label="CAST_ICEBALL")
-                plt.plot(probs[:, 28], label="PLACE_TORCH")
-                plt.plot(probs[:, 29], label="DRINK_POTION_RED")
-                plt.plot(probs[:, 30], label="DRINK_POTION_GREEN")
-                plt.plot(probs[:, 31], label="DRINK_POTION_BLUE")
-                plt.plot(probs[:, 32], label="DRINK_POTION_PINK")
-                plt.plot(probs[:, 33], label="DRINK_POTION_CYAN")
-                plt.plot(probs[:, 34], label="DRINK_POTION_YELLOW")
-                plt.plot(probs[:, 35], label="READ_BOOK")
-                plt.plot(probs[:, 36], label="ENCHANT_SWORD")
-                plt.plot(probs[:, 37], label="ENCHANT_ARMOUR")
+                # plt.plot(probs[:, 26], label="CAST_FIREBALL")
+                # plt.plot(probs[:, 27], label="CAST_ICEBALL")
+                # plt.plot(probs[:, 28], label="PLACE_TORCH")
+                # plt.plot(probs[:, 29], label="DRINK_POTION_RED")
+                # plt.plot(probs[:, 30], label="DRINK_POTION_GREEN")
+                # plt.plot(probs[:, 31], label="DRINK_POTION_BLUE")
+                # plt.plot(probs[:, 32], label="DRINK_POTION_PINK")
+                # plt.plot(probs[:, 33], label="DRINK_POTION_CYAN")
+                # plt.plot(probs[:, 34], label="DRINK_POTION_YELLOW")
+                # plt.plot(probs[:, 35], label="READ_BOOK")
+                # plt.plot(probs[:, 36], label="ENCHANT_SWORD")
+                # plt.plot(probs[:, 37], label="ENCHANT_ARMOUR")
                 plt.plot(probs[:, 38], label="MAKE_TORCH")
-                plt.plot(probs[:, 39], label="LEVEL_UP_DEXTERITY")
-                plt.plot(probs[:, 40], label="LEVEL_UP_STRENGTH")
-                plt.plot(probs[:, 41], label="LEVEL_UP_INTELLIGENCE")
-                plt.plot(probs[:, 42], label="ENCHANT_BOW")
+                # plt.plot(probs[:, 39], label="LEVEL_UP_DEXTERITY")
+                # plt.plot(probs[:, 40], label="LEVEL_UP_STRENGTH")
+                # plt.plot(probs[:, 41], label="LEVEL_UP_INTELLIGENCE")
+                # plt.plot(probs[:, 42], label="ENCHANT_BOW")
                 plt.title(f"Probability Curves for {num_wood} Wood and {num_water} Water")
                 plt.xlabel('Steps')
                 plt.ylabel('Probability')
-                plt.legend()
+                plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
                 plt.grid(True)
                 plt.show()
 
@@ -410,48 +410,59 @@ def experiment_with_varied_water_and_wood(
         print(f"Interactive plot saved to {filename}")
 
 if __name__ == "__main__":
-    print("importing libraries...")
-    from craftax.craftax.renderer import render_craftax_pixels
-    from craftax.craftax.envs.craftax_symbolic_env import CraftaxSymbolicEnv
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import pickle
-    import os
-    os.makedirs("/workspace/CraftaxDevinterp/ExperimentData/tree_water_experiment/images", exist_ok=True)
-    os.makedirs("/workspace/CraftaxDevinterp/ExperimentData/tree_water_experiment/data", exist_ok=True)
-
-    print("initialising...")
-    env = CraftaxSymbolicEnv()
-    
-    print("resetting... (generating world)")
-    rng = jax.random.PRNGKey(seed=0)
-    obs, state = env.reset(rng)
-
-    print("generating custom world state...")
-    num_water = 0
-    num_wood = 3
-    custom_state = generate_test_world(rng, num_wood=num_wood, num_water=num_water, crafting_table=True, pickaxe=True)
-    
-    # print("Running experiment")
-    # up, down, left, right, probs = run_experiment(env, custom_state, count_by=300)
-    # plt.plot(up, label="up")
-    # plt.plot(down, label="down")
-    # plt.plot(left, label="left")
-    # plt.plot(right, label="right")
-    # plt.legend()
-    # plt.savefig("/workspace/CraftaxDevinterp/ExperimentData/tree_water_experiment/images/movement_probs_water_9_wood_0.png")
-    # plt.close()
-
-    # with open("/workspace/CraftaxDevinterp/ExperimentData/tree_water_experiment/data/probs_water_9_wood_0.pkl", "wb") as f:
-    #     pickle.dump(probs, f)
-    # with open("/workspace/CraftaxDevinterp/ExperimentData/tree_water_experiment/data/state_water_9_wood_0.pkl", "wb") as f:
-    #     pickle.dump(custom_state, f)
-
-    print("rendering...")
-    rgb = render_craftax_pixels(
-        custom_state,
-        block_pixel_size=64, # or 16 or 64
-        do_night_noise=True,
+    experiment_with_varied_water_and_wood(
+        wood_range = (0, 5), 
+        water_range = (0, 5), 
+        count_by=1, 
+        crafting_table=True, 
+        pickaxe=True, 
+        sword = True, 
+        plotting=False, 
+        save_dir = "/workspace/CraftaxDevinterp/ExperimentData/tree_water_table_pickaxe_sword/data"
     )
-    plt.imshow(rgb/255)
-    plt.savefig(f"/workspace/CraftaxDevinterp/ExperimentData/tree_water_experiment/images/map_water_{num_water}_wood_{num_wood}.png")
+
+    # print("importing libraries...")
+    # from craftax.craftax.renderer import render_craftax_pixels
+    # from craftax.craftax.envs.craftax_symbolic_env import CraftaxSymbolicEnv
+    # import matplotlib.pyplot as plt
+    # import numpy as np
+    # import pickle
+    # import os
+    # os.makedirs("/workspace/CraftaxDevinterp/ExperimentData/tree_water_experiment/images", exist_ok=True)
+    # os.makedirs("/workspace/CraftaxDevinterp/ExperimentData/tree_water_experiment/data", exist_ok=True)
+
+    # print("initialising...")
+    # env = CraftaxSymbolicEnv()
+    
+    # print("resetting... (generating world)")
+    # rng = jax.random.PRNGKey(seed=0)
+    # obs, state = env.reset(rng)
+
+    # print("generating custom world state...")
+    # num_water = 0
+    # num_wood = 3
+    # custom_state = generate_test_world(rng, num_wood=num_wood, num_water=num_water, crafting_table=True, pickaxe=True)
+    
+    # # print("Running experiment")
+    # # up, down, left, right, probs = run_experiment(env, custom_state, count_by=300)
+    # # plt.plot(up, label="up")
+    # # plt.plot(down, label="down")
+    # # plt.plot(left, label="left")
+    # # plt.plot(right, label="right")
+    # # plt.legend()
+    # # plt.savefig("/workspace/CraftaxDevinterp/ExperimentData/tree_water_experiment/images/movement_probs_water_9_wood_0.png")
+    # # plt.close()
+
+    # # with open("/workspace/CraftaxDevinterp/ExperimentData/tree_water_experiment/data/probs_water_9_wood_0.pkl", "wb") as f:
+    # #     pickle.dump(probs, f)
+    # # with open("/workspace/CraftaxDevinterp/ExperimentData/tree_water_experiment/data/state_water_9_wood_0.pkl", "wb") as f:
+    # #     pickle.dump(custom_state, f)
+
+    # print("rendering...")
+    # rgb = render_craftax_pixels(
+    #     custom_state,
+    #     block_pixel_size=64, # or 16 or 64
+    #     do_night_noise=True,
+    # )
+    # plt.imshow(rgb/255)
+    # plt.savefig(f"/workspace/CraftaxDevinterp/ExperimentData/tree_water_experiment/images/map_water_{num_water}_wood_{num_wood}.png")
