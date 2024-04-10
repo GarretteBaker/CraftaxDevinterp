@@ -172,3 +172,4 @@ texture_cache*.pbz2
 intermediate/
 frames/
 llc_estimation/
+ExperimentData/

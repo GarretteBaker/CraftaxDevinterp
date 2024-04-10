@@ -833,10 +833,6 @@ for trajectory_no in tqdm(range(0, num_trajectories, 20), desc="Checkpoint progr
             pickle.dump(state, f)
 #%%
 frames_dir = "/workspace/CraftaxDevinterp/frames"
-# TODO: Figure out mobs in in ocean
-# TODO: Use initial map as "mean"
-# TODO: Smooth trainshift redshift
-
 def rgb_to_yiq(rgb):
     """
     Convert an RGB image to the YIQ color space.
