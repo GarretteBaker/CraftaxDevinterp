@@ -9,6 +9,7 @@ import craftax
 from craftax.environment_base.wrappers import (
     LogWrapper,
     OptimisticResetVecEnvWrapper,
+    LogEnvState
 )
 from craftax.models.actor_critic import (
     ActorCritic,
@@ -19,7 +20,8 @@ import os
 from sgld_utils import (
     SGLDConfig, 
     run_sgld, 
-    run_sgld_with_scan
+    get_sgld_params, 
+    sgld_run
 )
 import numpy as np
 import matplotlib.pyplot as plt
@@ -28,6 +30,10 @@ from tqdm import tqdm
 import torch.utils.data as data
 import optax
 from flax.training import train_state
+from craftax.craftax.tree_water_experiment import generate_test_world
+from craftax.craftax.renderer import render_craftax_symbolic
+from craftax.craftax.craftax_state import EnvParams, StaticEnvParams
+
 
 layer_size = 512
 seed = 0
@@ -38,12 +44,13 @@ rng, rng_train, rng_sgld = jax.random.split(rng, num=3)
 def generate_trajectory(network_params, rng, num_envs=1, num_steps=495):
     env = CraftaxSymbolicEnv()
     env_params = env.default_params
-    env = LogWrapper(env)
-    env = OptimisticResetVecEnvWrapper(
-        env,
-        num_envs=num_envs,
-        reset_ratio=min(16, num_envs),
-    )
+    # env_params = StaticEnvParams()
+    # env = LogWrapper(env)
+    # env = OptimisticResetVecEnvWrapper(
+    #     env,
+    #     num_envs=num_envs,
+    #     reset_ratio=min(16, num_envs),
+    # )
     network = ActorCritic(env.action_space(env_params).n, layer_size)
 
     class Transition(NamedTuple):
@@ -81,7 +88,11 @@ def generate_trajectory(network_params, rng, num_envs=1, num_steps=495):
         return runner_state, transition
     rng, _rng = jax.random.split(rng)
     obsv, env_state = env.reset(_rng, env_params)
-
+    # print(env_state)
+    env_state = generate_test_world(rng, 0, 0, pickaxe=False, crafting_table=False, sword=False, torch=0, placed_torch=False)
+    # env_state = jnp.stack([env_state])
+    # print(env_state)
+    obsv = render_craftax_symbolic(env_state)
     rng, _rng = jax.random.split(rng)
     runner_state = (
         env_state,
@@ -343,42 +354,53 @@ sgld_config = SGLDConfig(
     batch_size = 64)
 
 num_models = 1525
-os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/eps_1e-5_gam_10_itemp_1e-5/trace_curves", exist_ok = True)
-os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/eps_1e-5_gam_10_itemp_1e-5/lambdahats", exist_ok=True)
-os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/eps_1e-5_gam_10_itemp_1e-5/trace_data", exist_ok=True)
+os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/water_restricted/trace_curves", exist_ok = True)
+os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/water_restricted/lambdahats", exist_ok=True)
+os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/water_restricted/trace_data", exist_ok=True)
+itemp = 0.01
+num_training_data = len(expert_obses)
 
-for model_no in tqdm(range(0, num_models, 1)):
+sgld_params = get_sgld_params(
+    rng_sgld, 
+    loss_fn, 
+    sgld_config, 
+    network_params, 
+    expert_obses, 
+    expert_logitses, 
+    itemp = itemp, 
+    trace_batch_loss = True, 
+    compute_distance = False, 
+    verbose = False
+)
+jitted_sgld_run = jax.jit(lambda network_params: sgld_run(
+    sgld_params[0], 
+    sgld_params[1], 
+    sgld_params[2], 
+    sgld_params[3], 
+    sgld_params[4], 
+    sgld_params[5], 
+    sgld_params[6], 
+    sgld_params[7], 
+    network_params
+))
+for model_no in tqdm(range(0, num_models, 300)):
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"
     checkpointer = ocp.StandardCheckpointer()
     folder_list = os.listdir(checkpoint_directory)
     network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
-    num_training_data = len(expert_obses)
-    itemp = 1e-5
-
-    loss_trace, distances, acceptance_probs = run_sgld(
-        rng_sgld, 
-        loss_fn, 
-        sgld_config, 
-        network_params, 
-        expert_obses, 
-        expert_logitses, 
-        itemp = itemp, 
-        trace_batch_loss = True, 
-        compute_distance = False, 
-        verbose = False
-    )
+    loss_trace = jitted_sgld_run(network_params)
 
     init_loss = loss_fn(network_params, expert_obses, expert_logitses)
     lambdahat = float(np.mean(loss_trace[2000:]) - init_loss) * num_training_data * itemp
-    with open(f"/workspace/CraftaxDevinterp/llc_estimation/eps_1e-5_gam_10_itemp_1e-5/lambdahats/{model_no}.pkl", "wb") as f:
+    with open(f"/workspace/CraftaxDevinterp/llc_estimation/water_restricted/lambdahats/{model_no}.pkl", "wb") as f:
         pickle.dump(lambdahat, f)
-    with open(f"/workspace/CraftaxDevinterp/llc_estimation/eps_1e-5_gam_10_itemp_1e-5/trace_data/{model_no}.pkl", "wb") as f:
-        pickle.dump((loss_trace, distances, acceptance_probs, init_loss), f)
+    with open(f"/workspace/CraftaxDevinterp/llc_estimation/water_restricted/trace_data/{model_no}.pkl", "wb") as f:
+        pickle.dump((loss_trace, init_loss), f)
     plt.plot(loss_trace)
     plt.axhline(y=init_loss, linestyle=':')
-    plt.title(f"lambda {lambdahat}, mala {np.mean(np.array(acceptance_probs)[:, 1])}")
-    plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/eps_1e-5_gam_10_itemp_1e-5/trace_curves/{model_no}.png")
+    plt.title(f"lambda {lambdahat}")
+    plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/water_restricted/trace_curves/{model_no}.png")
     plt.close()
 
 # %%
@@ -386,17 +408,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 from tqdm import tqdm
-num_models = 222
+num_models = 1525
+num_training_data = len(expert_obses)
 print("loading lambdahats")
 lambdahats = list()
-for modelno in tqdm(range(0, num_models, 1)):
-    with open(f"/workspace/CraftaxDevinterp/llc_estimation/eps_1e-5_gam_10_itemp_1e-5/lambdahats/{modelno}.pkl", "rb") as f:
+for modelno in tqdm(range(0, num_models, 300)):
+    with open(f"/workspace/CraftaxDevinterp/llc_estimation/water_restricted/lambdahats/{modelno}.pkl", "rb") as f:
         lambdahat = pickle.load(f)
-    # num_training_data = len(expert_obses)
-    # lambdahat = float(np.mean(loss_trace[2000:]) - init_loss) * num_training_data * 0.01
     lambdahats.append(lambdahat)
 
 plt.plot(lambdahats)
 plt.title(f"Lambdahats")
-plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/eps_1e-5_gam_10_itemp_1e-5/lambdahats.png")
+plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/water_restricted/lambdahats.png")
 # %%
