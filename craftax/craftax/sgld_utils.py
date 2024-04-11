@@ -1,3 +1,5 @@
+# Heavily taken from https://github.com/edmundlth/validating_lambdahat/blob/main/sgld_utils.py
+
 import haiku as hk
 import jax
 import jax.numpy as jnp
