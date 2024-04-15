@@ -354,9 +354,9 @@ sgld_config = SGLDConfig(
     batch_size = 64)
 
 num_models = 1525
-os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/water_restricted/trace_curves", exist_ok = True)
-os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/water_restricted/lambdahats", exist_ok=True)
-os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/water_restricted/trace_data", exist_ok=True)
+os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/water_tree_restricted/trace_curves", exist_ok = True)
+os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/water_tree_restricted/lambdahats", exist_ok=True)
+os.makedirs("/workspace/CraftaxDevinterp/llc_estimation/water_tree_restricted/trace_data", exist_ok=True)
 itemp = 0.01
 num_training_data = len(expert_obses)
 
@@ -383,7 +383,7 @@ jitted_sgld_run = jax.jit(lambda network_params: sgld_run(
     sgld_params[7], 
     network_params
 ))
-for model_no in tqdm(range(0, num_models, 300)):
+for model_no in tqdm(range(0, num_models, 1)):
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{model_no}"
     checkpointer = ocp.StandardCheckpointer()
     folder_list = os.listdir(checkpoint_directory)
@@ -393,14 +393,14 @@ for model_no in tqdm(range(0, num_models, 300)):
 
     init_loss = loss_fn(network_params, expert_obses, expert_logitses)
     lambdahat = float(np.mean(loss_trace[2000:]) - init_loss) * num_training_data * itemp
-    with open(f"/workspace/CraftaxDevinterp/llc_estimation/water_restricted/lambdahats/{model_no}.pkl", "wb") as f:
+    with open(f"/workspace/CraftaxDevinterp/llc_estimation/water_tree_restricted/lambdahats/{model_no}.pkl", "wb") as f:
         pickle.dump(lambdahat, f)
-    with open(f"/workspace/CraftaxDevinterp/llc_estimation/water_restricted/trace_data/{model_no}.pkl", "wb") as f:
+    with open(f"/workspace/CraftaxDevinterp/llc_estimation/water_tree_restricted/trace_data/{model_no}.pkl", "wb") as f:
         pickle.dump((loss_trace, init_loss), f)
     plt.plot(loss_trace)
     plt.axhline(y=init_loss, linestyle=':')
     plt.title(f"lambda {lambdahat}")
-    plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/water_restricted/trace_curves/{model_no}.png")
+    plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/water_tree_restricted/trace_curves/{model_no}.png")
     plt.close()
 
 # %%
@@ -412,12 +412,12 @@ num_models = 1525
 num_training_data = len(expert_obses)
 print("loading lambdahats")
 lambdahats = list()
-for modelno in tqdm(range(0, num_models, 300)):
-    with open(f"/workspace/CraftaxDevinterp/llc_estimation/water_restricted/lambdahats/{modelno}.pkl", "rb") as f:
+for modelno in tqdm(range(0, num_models, 1)):
+    with open(f"/workspace/CraftaxDevinterp/llc_estimation/water_tree_restricted/lambdahats/{modelno}.pkl", "rb") as f:
         lambdahat = pickle.load(f)
     lambdahats.append(lambdahat)
 
 plt.plot(lambdahats)
 plt.title(f"Lambdahats")
-plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/water_restricted/lambdahats.png")
+plt.savefig(f"/workspace/CraftaxDevinterp/llc_estimation/water_tree_restricted/lambdahats.png")
 # %%
