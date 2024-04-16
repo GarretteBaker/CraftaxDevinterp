@@ -451,6 +451,66 @@ def view_experiment(folder, wood_range, pickaxe_range, sword_range, stone_range,
     wood_water_interact = interactive(update_plot, num_wood=wood_slider, num_pickaxe=pickaxe_slider, num_sword=sword_slider, num_stone=stone_slider, num_iron=iron_slider)
     display(widgets.VBox([wood_water_interact, plot_output]))  
 
+def view_experiment_stacked(folder, wood_range, pickaxe_range, sword_range, stone_range, iron_range):
+    import pickle
+    import os
+    import matplotlib.pyplot as plt
+    import ipywidgets as widgets
+    from IPython.display import display
+    import numpy as np
+    from ipywidgets import interactive, Output
+    from ipywidgets.embed import embed_minimal_html
+    results = list()
+    for modelno in range(1525):
+        with open(f"{folder}/{modelno}.pkl", "rb") as f:
+            result = pickle.load(f)
+        results.append(result)
+    results = np.array(results)
+    
+    wood_slider = widgets.IntSlider(value=wood_range[0], min=wood_range[0], max=wood_range[1]-1, step=1, description='Wood')
+    pickaxe_slider = widgets.IntSlider(value=pickaxe_range[0], min=pickaxe_range[0], max=pickaxe_range[1]-1, step=1, description='Pickaxe')
+    sword_slider = widgets.IntSlider(value=sword_range[0], min=sword_range[0], max=sword_range[1]-1, step=1, description='Sword')
+    stone_slider = widgets.IntSlider(value=stone_range[0], min=stone_range[0], max=stone_range[1]-1, step=1, description='Stone')
+    iron_slider = widgets.IntSlider(value=iron_range[0], min=iron_range[0], max=iron_range[1]-1, step=1, description='Iron')
+
+    plot_output = Output()
+
+    def update_plot(num_wood, num_pickaxe, num_sword, num_stone, num_iron):
+        with plot_output:
+            plot_output.clear_output(wait=True)
+            plt.figure(figsize=(10,6))
+            probs = results[:, num_pickaxe, num_wood, num_sword, num_stone, num_iron, :]
+            
+            # Normalize the probabilities so they sum to 1 across all actions at each step
+            probs /= probs.sum(axis=1, keepdims=True)
+
+            # List of actions for better code readability and maintenance
+            actions = [
+                "NOOP", "LEFT", "RIGHT", "UP", "DOWN", "DO", "SLEEP", "PLACE_STONE",
+                "PLACE_TABLE", "PLACE_FURNACE", "PLACE_PLANT", "MAKE_WOOD_PICKAXE",
+                "MAKE_STONE_PICKAXE", "MAKE_IRON_PICKAXE", "MAKE_WOOD_SWORD",
+                "MAKE_STONE_SWORD", "MAKE_IRON_SWORD", "REST", "DESCEND", "ASCEND",
+                "MAKE_DIAMOND_PICKAXE", "MAKE_DIAMOND_SWORD", "MAKE_IRON_ARMOUR",
+                "MAKE_DIAMOND_ARMOUR", "SHOOT_ARROW", "MAKE_ARROW", "CAST_FIREBALL",
+                "CAST_ICEBALL", "PLACE_TORCH", "DRINK_POTION_RED", "DRINK_POTION_GREEN",
+                "DRINK_POTION_BLUE", "DRINK_POTION_PINK", "DRINK_POTION_CYAN",
+                "DRINK_POTION_YELLOW", "READ_BOOK", "ENCHANT_SWORD", "ENCHANT_ARMOUR",
+                "MAKE_TORCH", "LEVEL_UP_DEXTERITY", "LEVEL_UP_STRENGTH",
+                "LEVEL_UP_INTELLIGENCE", "ENCHANT_BOW"
+            ]
+
+            plt.stackplot(range(probs.shape[0]), *probs.T, labels=actions)
+            plt.title(f"Fractional Probability Curves for {num_wood} Wood, {num_pickaxe} Pickaxe, {num_sword} Sword, {num_stone} Stone, {num_iron} Iron")
+            plt.xlabel('Steps')
+            plt.ylabel('Fraction of Probability')
+            plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            plt.grid(True)
+            plt.show()
+
+    # Interactive widget setup
+    interact_widget = interactive(update_plot, num_wood=wood_slider, num_pickaxe=pickaxe_slider, num_sword=sword_slider, num_stone=stone_slider, num_iron=iron_slider)
+    display(widgets.VBox([interact_widget, plot_output]))
+
 #%%
 def run_experiment(env, env_state, models=1525, count_by=1):
     import os
@@ -961,7 +1021,7 @@ for modelno in tqdm(range(1525)):
         pickle.dump(result, f)
 
 #%%
-view_experiment(
+view_experiment_stacked(
     "/workspace/CraftaxDevinterp/ExperimentData/all_inventory/results", 
     (0, 15), 
     (0, 4), 
