@@ -251,7 +251,7 @@ def optimized_experiment(
     return probs
 
 #%%
-def view_experiment(folder, wood_range, pickaxe_range, sword_range, stone_range, iron_range):
+def view_experiment(folder, wood_range, stone_range, coal_range, iron_range):
     import pickle
     import os
     import matplotlib.pyplot as plt
@@ -261,25 +261,25 @@ def view_experiment(folder, wood_range, pickaxe_range, sword_range, stone_range,
     from ipywidgets import interactive, Output
     from ipywidgets.embed import embed_minimal_html
 
-    results = list()
-    for modelno in range(1525):
+    results = np.zeros((1525, 16, 15, 17, 18, 17))
+    for modelno in tqdm(range(1525)):
         with open(f"{folder}/{modelno}.pkl", "rb") as f:
             result = pickle.load(f)
-        results.append(result)
-    results = np.array(results)
+        results[modelno, :] = result
+    print("making sliders")
     wood_slider = widgets.IntSlider(value=wood_range[0], min=wood_range[0], max=wood_range[1]-1, step=1, description='Wood')
-    pickaxe_slider = widgets.IntSlider(value=pickaxe_range[0], min=pickaxe_range[0], max=pickaxe_range[1]-1, step=1, description='Pickaxe')
-    sword_slider = widgets.IntSlider(value=sword_range[0], min=sword_range[0], max=sword_range[1]-1, step=1, description='Sword')
     stone_slider = widgets.IntSlider(value=stone_range[0], min=stone_range[0], max=stone_range[1]-1, step=1, description='Stone')
+    coal_slider = widgets.IntSlider(value=coal_range[0], min=coal_range[0], max=coal_range[1]-1, step=1, description='Coal')
     iron_slider = widgets.IntSlider(value=iron_range[0], min=iron_range[0], max=iron_range[1]-1, step=1, description='Iron')
 
     plot_output = Output()
 
-    def update_plot(num_wood, num_pickaxe, num_sword, num_stone, num_iron):
+    def update_plot(num_wood, num_stone, num_coal, num_iron):
         with plot_output:
             plot_output.clear_output(wait=True)
             plt.figure(figsize=(10,6))
-            probs = results[:, num_pickaxe, num_wood, num_sword, num_stone, num_iron, :]
+            probs = results[:, num_stone, num_wood, num_coal, num_iron, :]
+            print(probs.shape)
             plt.plot(probs[:, 0], label="NOOP", color='b', linestyle='-')
             plt.plot(probs[:, 1], label="LEFT", color='g', linestyle='-')
             plt.plot(probs[:, 2], label="RIGHT", color='r', linestyle='-')
@@ -297,41 +297,60 @@ def view_experiment(folder, wood_range, pickaxe_range, sword_range, stone_range,
             plt.plot(probs[:, 14], label="MAKE_WOOD_SWORD", color='navy', linestyle='-')
             plt.plot(probs[:, 15], label="MAKE_STONE_SWORD", color='teal', linestyle='-')
             plt.plot(probs[:, 16], label="MAKE_IRON_SWORD", color='lime', linestyle='-')
-            plt.plot(probs[:, 17], label="REST", color='indigo', linestyle='-')
-            plt.plot(probs[:, 18], label="DESCEND", color='violet', linestyle='-')
-            plt.plot(probs[:, 19], label="ASCEND", color='gold', linestyle='-')
-            plt.plot(probs[:, 20], label="MAKE_DIAMOND_PICKAXE", color='b', linestyle='--')
-            plt.plot(probs[:, 21], label="MAKE_DIAMOND_SWORD", color='g', linestyle='--')
-            plt.plot(probs[:, 22], label="MAKE_IRON_ARMOUR", color='r', linestyle='--')
-            plt.plot(probs[:, 23], label="MAKE_DIAMOND_ARMOUR", color='c', linestyle='--')
-            plt.plot(probs[:, 24], label="SHOOT_ARROW", color='m', linestyle='--')
-            plt.plot(probs[:, 25], label="MAKE_ARROW", color='y', linestyle='--')
-            plt.plot(probs[:, 26], label="CAST_FIREBALL", color='k', linestyle='--')
-            plt.plot(probs[:, 27], label="CAST_ICEBALL", color='orange', linestyle='--')
-            plt.plot(probs[:, 28], label="PLACE_TORCH", color='purple', linestyle='--')
-            plt.plot(probs[:, 29], label="DRINK_POTION_RED", color='brown', linestyle='--')
-            plt.plot(probs[:, 30], label="DRINK_POTION_GREEN", color='pink', linestyle='--')
-            plt.plot(probs[:, 31], label="DRINK_POTION_BLUE", color='gray', linestyle='--')
-            plt.plot(probs[:, 32], label="DRINK_POTION_PINK", color='olive', linestyle='--')
-            plt.plot(probs[:, 33], label="DRINK_POTION_CYAN", color='cyan', linestyle='--')
-            plt.plot(probs[:, 34], label="DRINK_POTION_YELLOW", color='navy', linestyle='--')
-            plt.plot(probs[:, 35], label="READ_BOOK", color='teal', linestyle='--')
-            plt.plot(probs[:, 36], label="ENCHANT_SWORD", color='lime', linestyle='--')
-            plt.plot(probs[:, 37], label="ENCHANT_ARMOUR", color='indigo', linestyle='--')
-            plt.plot(probs[:, 38], label="MAKE_TORCH", color='violet', linestyle='--')
-            plt.plot(probs[:, 39], label="LEVEL_UP_DEXTERITY", color='gold', linestyle='--')
-            plt.plot(probs[:, 40], label="LEVEL_UP_STRENGTH", color='b', linestyle='-.')
-            plt.plot(probs[:, 41], label="LEVEL_UP_INTELLIGENCE", color='g', linestyle='-.')
-            plt.plot(probs[:, 42], label="ENCHANT_BOW", color='r', linestyle='-.')
-            plt.title(f"Probability Curves for {num_wood} Wood, {num_pickaxe} Pickaxe, {num_sword} Sword, {num_stone} Stone, {num_iron} Iron")
+            plt.title(f"Probability Curves for {num_wood} wood, {num_stone} stone, {num_coal} coal, {num_iron} iron")
             plt.xlabel('Steps')
             plt.ylabel('Probability')
             plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
             plt.grid(True)
             plt.show()
-    wood_water_interact = interactive(update_plot, num_wood=wood_slider, num_pickaxe=pickaxe_slider, num_sword=sword_slider, num_stone=stone_slider, num_iron=iron_slider)
+    print("making plot")
+    wood_water_interact = interactive(update_plot, num_wood=wood_slider, num_stone = stone_slider, num_coal = coal_slider, num_iron = iron_slider)
     display(widgets.VBox([wood_water_interact, plot_output]))  
 
+def view_experiment_fillbetwween(folder, wood_range, stone_range, coal_range, iron_range):
+    import pickle
+    import os
+    import matplotlib.pyplot as plt
+    import ipywidgets as widgets
+    from IPython.display import display
+    import numpy as np
+    from ipywidgets import interactive, Output
+    from ipywidgets.embed import embed_minimal_html
+
+    results = np.zeros((1525, 16, 15, 17, 18, 17))
+    for modelno in tqdm(range(1525)):
+        with open(f"{folder}/{modelno}.pkl", "rb") as f:
+            result = pickle.load(f)
+        results[modelno, :] = result
+    print("making sliders")
+    wood_slider = widgets.IntSlider(value=wood_range[0], min=wood_range[0], max=wood_range[1]-1, step=1, description='Wood')
+    stone_slider = widgets.IntSlider(value=stone_range[0], min=stone_range[0], max=stone_range[1]-1, step=1, description='Stone')
+    coal_slider = widgets.IntSlider(value=coal_range[0], min=coal_range[0], max=coal_range[1]-1, step=1, description='Coal')
+    iron_slider = widgets.IntSlider(value=iron_range[0], min=iron_range[0], max=iron_range[1]-1, step=1, description='Iron')
+
+    plot_output = Output()
+
+    def update_plot(num_wood, num_stone, num_coal, num_iron):
+        with plot_output:
+            plot_output.clear_output(wait=True)
+            plt.figure(figsize=(10,6))
+            probs = results[:, num_stone, num_wood, num_coal, num_iron, :]
+            colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan', 'navy', 'teal', 'lime']
+
+            # List of actions for readability
+            actions = ["NOOP", "LEFT", "RIGHT", "UP", "DOWN", "DO", "SLEEP", "PLACE_STONE", "PLACE_TABLE", "PLACE_FURNACE", "PLACE_PLANT", "MAKE_WOOD_PICKAXE", "MAKE_STONE_PICKAXE", "MAKE_IRON_PICKAXE", "MAKE_WOOD_SWORD", "MAKE_STONE_SWORD", "MAKE_IRON_SWORD"]
+            plt.stackplot(range(probs.shape[0]), *probs.T, labels=actions, colors=colors, alpha=0.8)
+
+            plt.title(f"Fractional Probability Curves for {num_wood} wood, {num_stone} stone, {num_coal} coal, {num_iron} iron")
+            plt.xlabel('Steps')
+            plt.ylabel('Fraction of Probability')
+            plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            plt.grid(True)
+            plt.show()
+
+    print("making plot")
+    wood_water_interact = interactive(update_plot, num_wood=wood_slider, num_stone = stone_slider, num_coal = coal_slider, num_iron = iron_slider)
+    display(widgets.VBox([wood_water_interact, plot_output]))
 #%%
 def run_experiment(env, env_state, models=1525, count_by=1):
     import os
@@ -390,9 +409,8 @@ def restricted_ed(env_state, models=1525, num_pcs = 3):
 def make_experiment_pca(
         data_folder, 
         range_wood, 
-        range_pickaxe, 
-        range_sword,
         range_stone, 
+        range_coal,
         range_iron, 
         num_pcs = 3, 
         save_folder = None
@@ -411,33 +429,48 @@ def make_experiment_pca(
     if save_folder is None:
         save_folder = data_folder.replace("logits", "pca")
     os.makedirs(save_folder, exist_ok=True)
-    results = list()
-    for modelno in range(1525):
+    results = np.zeros((1599, 16, 15, 17, 18, 17))
+    for modelno in tqdm(range(1599)):
         with open(f"{data_folder}/{modelno}.pkl", "rb") as f:
             result = pickle.load(f)
-        results.append(result)
-    results = np.array(results)
+        results[modelno, :] = result
 
     range_wood = np.arange(*range_wood, 1)
-    range_pickaxe = np.arange(*range_pickaxe, 1)
-    range_sword = np.arange(*range_sword, 1)
     range_stone = np.arange(*range_stone, 1)
+    range_coal = np.arange(*range_coal, 1)
     range_iron = np.arange(*range_iron, 1)
-    num_iters = len(range_wood) * len(range_pickaxe) * len(range_sword) * len(range_stone) * len(range_iron)
-    for num_wood, num_pickaxe, num_sword, num_stone, num_iron in tqdm(itertools.product(range_wood, range_pickaxe, range_sword, range_stone, range_iron), total=num_iters):
-        result = results[:, num_pickaxe, num_wood, num_sword, num_stone, num_iron, :]
-        pca = PCA(n_components=num_pcs)
-        pca.fit(result)
-        projected = pca.transform(result)
-        with open(f"{save_folder}/{num_wood}_{num_pickaxe}_{num_sword}_{num_stone}_{num_iron}.pkl", "wb") as f:
-            pickle.dump(projected, f)
+    num_iters = len(range_wood) * len(range_stone) * len(range_coal) * len(range_iron)
+
+    woods = results.shape[1]
+    stones = results.shape[2]
+    coals = results.shape[3]
+    irons = results.shape[4]
+    action_size = results.shape[5]
+
+    # results = results[:, :, :, :, :, :]
+    results = results[:, :, 0, 0, 0, :]
+    num_samples = results.shape[0]
+    results = results.reshape(num_samples * woods * 1 * 1 * 1, action_size)
+    pca = PCA(n_components=num_pcs)
+    pca.fit(results)
+    projected = pca.transform(results)
+    projected = projected.reshape(num_samples, woods, num_pcs)
+    
+    # for num_wood, num_stone, num_coal, num_iron in tqdm(itertools.product(range_wood, range_stone, range_coal, range_iron), total=num_iters):
+    #     projected_instance = projected[:, num_wood, num_stone, num_coal, num_iron, :]
+    #     with open(f"{save_folder}/{num_wood}_{num_stone}_{num_coal}_{num_iron}.pkl", "wb") as f:
+    #         pickle.dump(projected_instance, f)
+
+    for num_wood in tqdm(range_wood):
+        projected_instance = projected[:, num_wood, :]
+        with open(f"{save_folder}/{num_wood}_0_0_0.pkl", "wb") as f:
+            pickle.dump(projected_instance, f)
 
 def view_experiment_pca(
         data_folder, 
         range_wood, 
-        range_pickaxe, 
-        range_sword,
         range_stone, 
+        range_coal,
         range_iron, 
         num_pcs = 3
 ):
@@ -452,36 +485,35 @@ def view_experiment_pca(
     import itertools
     assert "pca" in data_folder, "Error: Data folder must be folder of pca"
     results = list()
-    product = list(itertools.product(np.arange(*range_wood, 1), np.arange(*range_pickaxe, 1), np.arange(*range_sword, 1), np.arange(*range_stone, 1), np.arange(*range_iron, 1)))
-    for num_wood, num_pickaxe, num_sword, num_stone, num_iron in product:
-        with open(f"{data_folder}/{num_wood}_{num_pickaxe}_{num_sword}_{num_stone}_{num_iron}.pkl", "rb") as f:
+    product = list(itertools.product(np.arange(*range_wood, 1), np.arange(*range_stone, 1), np.arange(*range_coal, 1), np.arange(*range_iron, 1)))
+    for num_wood, num_stone, num_coal, num_iron in product:
+        with open(f"{data_folder}/{num_wood}_{num_stone}_{num_coal}_{num_iron}.pkl", "rb") as f:
             result = pickle.load(f)
         results.append(result)
     results = np.array(results)
     wood_slider = widgets.IntSlider(value=range_wood[0], min=range_wood[0], max=range_wood[1]-1, step=1, description='Wood')
-    pickaxe_slider = widgets.IntSlider(value=range_pickaxe[0], min=range_pickaxe[0], max=range_pickaxe[1]-1, step=1, description='Pickaxe')
-    sword_slider = widgets.IntSlider(value=range_sword[0], min=range_sword[0], max=range_sword[1]-1, step=1, description='Sword')
     stone_slider = widgets.IntSlider(value=range_stone[0], min=range_stone[0], max=range_stone[1]-1, step=1, description='Stone')
+    coal_slider = widgets.IntSlider(value=range_coal[0], min=range_coal[0], max=range_coal[1]-1, step=1, description='Coal')
     iron_slider = widgets.IntSlider(value=range_iron[0], min=range_iron[0], max=range_iron[1]-1, step=1, description='Iron')
 
     plot_output = Output()
 
-    def update_plot(num_wood, num_pickaxe, num_sword, num_stone, num_iron):
+    def update_plot(num_wood, num_stone, num_coal, num_iron):
         with plot_output:
             plot_output.clear_output(wait=True)
             fig, ax = plt.subplots(len(list(itertools.combinations(range(num_pcs), 2))), 1, figsize=(10, 6*len(list(itertools.combinations(range(num_pcs), 2)))))
-            result_num = product.index((num_wood, num_pickaxe, num_sword, num_stone, num_iron))
+            result_num = product.index((num_wood, num_stone, num_coal, num_iron))
             result = results[result_num, ...]
             for i, (pcx, pcy) in enumerate(itertools.combinations(range(num_pcs), 2)):
-                sc = ax[i].scatter(result[:, pcx], result[:, pcy], label=f"PC{pcx} vs PC{pcy}", s=1, c=np.arange(1525), cmap="rainbow")
+                sc = ax[i].scatter(result[:, pcx], result[:, pcy], label=f"PC{pcx} vs PC{pcy}", s=1, c=np.arange(1599), cmap="rainbow")
                 ax[i].set_xlabel(f"PC{pcx}")
                 ax[i].set_ylabel(f"PC{pcy}")
                 # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
                 ax[i].grid(True)
-            fig.suptitle(f"PCA for {num_wood} Wood, {num_pickaxe} Pickaxe, {num_sword} Sword, {num_stone} Stone, {num_iron} Iron")
+            fig.suptitle(f"PCA for {num_wood} Wood, {num_stone} Stone, {num_coal} coal, {num_iron} Iron")
             cbar = plt.colorbar(sc, ax=ax[-1])
             plt.show()
-    wood_water_interact = interactive(update_plot, num_wood=wood_slider, num_pickaxe=pickaxe_slider, num_sword=sword_slider, num_stone=stone_slider, num_iron=iron_slider)
+    wood_water_interact = interactive(update_plot, num_wood=wood_slider, num_stone=stone_slider, num_coal = coal_slider, num_iron=iron_slider)
     display(widgets.VBox([wood_water_interact, plot_output]))
 
 
@@ -735,14 +767,11 @@ wood_range = jnp.arange(0, 15, 1)
 water_range = jnp.arange(0, 10, 1)
 pickaxe_range = jnp.arange(0, 4, 1)
 sword_range = jnp.arange(0, 4, 1)
-torch_range = jnp.arange(0, 20, 1)
-stone_range = jnp.arange(0, 15, 1)
-coal_range = jnp.arange(0, 15, 1)
-iron_range = jnp.arange(0, 15, 1)
+stone_range = jnp.arange(0, 16, 1)
+coal_range = jnp.arange(0, 17, 1)
+iron_range = jnp.arange(0, 18, 1)
 diamond_range = jnp.arange(0, 20, 1)
 sapling_range = jnp.arange(0, 20, 1)
-bow_range = jnp.arange(0, 2, 1)
-arrows_range = jnp.arange(0, 20, 1)
 wood, num_stone, num_coal, num_iron = jnp.meshgrid(
     wood_range, 
     stone_range, 
@@ -764,53 +793,40 @@ for modelno, folder in tqdm(enumerate(models), total=len(models)):
 print(f"Time for mapped: {time.time() - t0}")
 #%%
 
-wood = 0
-water = 9
 crafting_table = False
-placed_torch = True
-pickaxe = 2
-sword = 0
-torch = 0
+
+num_wood = 0
 num_stone = 0
 num_coal = 0
 num_iron = 0
 num_diamond = 0
 num_sapling = 0
-num_bow = 0
-num_arrows = 0
+
+water = 9
 experiment_mapped = jax.jit(
     jax.vmap(
         jax.vmap(
             jax.vmap(
                 jax.vmap(
-                    jax.vmap(
-                        lambda wood, pickaxe, sword, num_stone, num_iron, params: optimized_experiment(
-                            wood,
-                            water, 
-                            params,
-                            crafting_table,
-                            pickaxe,
-                            sword,
-                            torch,
-                            placed_torch,
-                            num_stone,
-                            num_coal,
-                            num_iron,
-                            num_diamond,
-                            num_sapling,
-                            num_bow,
-                            num_arrows, 
-                            return_logits = True
-                        ), 
-                        (0, 0, 0, 0, 0, None)
+                    lambda wood, num_stone, num_coal, num_iron, params: optimized_experiment(
+                        wood,
+                        water, 
+                        params,
+                        crafting_table,
+                        num_stone,
+                        num_coal,
+                        num_iron,
+                        num_diamond,
+                        num_sapling,
+                        return_logits=True
                     ), 
-                    (0, 0, 0, 0, 0, None)
+                    (0, 0, 0, 0, None)
                 ), 
-                (0, 0, 0, 0, 0, None)
-            ),
-            (0, 0, 0, 0, 0, None)
+                (0, 0, 0, 0, None)
+            ), 
+            (0, 0, 0, 0, None)
         ),
-        (0, 0, 0, 0, 0, None)
+        (0, 0, 0, 0, None)
     )
 )
 
@@ -818,59 +834,55 @@ wood_range = jnp.arange(0, 15, 1)
 water_range = jnp.arange(0, 10, 1)
 pickaxe_range = jnp.arange(0, 4, 1)
 sword_range = jnp.arange(0, 4, 1)
-torch_range = jnp.arange(0, 20, 1)
-stone_range = jnp.arange(0, 15, 1)
-coal_range = jnp.arange(0, 15, 1)
-iron_range = jnp.arange(0, 15, 1)
+stone_range = jnp.arange(0, 16, 1)
+coal_range = jnp.arange(0, 17, 1)
+iron_range = jnp.arange(0, 18, 1)
 diamond_range = jnp.arange(0, 20, 1)
 sapling_range = jnp.arange(0, 20, 1)
-bow_range = jnp.arange(0, 2, 1)
-arrows_range = jnp.arange(0, 20, 1)
-wood, pickaxe, sword, num_stone, num_iron = jnp.meshgrid(
+wood, num_stone, num_coal, num_iron = jnp.meshgrid(
     wood_range, 
-    pickaxe_range, 
-    sword_range, 
     stone_range, 
-    iron_range, 
+    coal_range,
+    iron_range
 )
 
+#%%
 t0 = time.time()
-os.makedirs("/workspace/CraftaxDevinterp/ExperimentData/all_inventory/logits", exist_ok=True)
-for modelno in tqdm(range(1525)):
-    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{modelno}"
+os.makedirs("/workspace/CraftaxDevinterp/ExperimentData/craftax_classic/all_inventory/logits", exist_ok=True)
+models = os.listdir("/workspace/CraftaxDevinterp/intermediate")
+for modelno, folder in tqdm(enumerate(models), total=len(models)):
+    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{folder}"
     folder_list = os.listdir(checkpoint_directory)
     network_params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-    result = experiment_mapped(wood, pickaxe, sword, num_stone, num_iron, network_params)
-    with open(f"/workspace/CraftaxDevinterp/ExperimentData/all_inventory/logits/{modelno}.pkl", "wb") as f:
+    result = experiment_mapped(wood, num_stone, num_coal, num_iron, network_params)
+    with open(f"/workspace/CraftaxDevinterp/ExperimentData/craftax_classic/all_inventory/logits/{modelno}.pkl", "wb") as f:
         pickle.dump(result, f)
+print(f"Time for mapped: {time.time() - t0}")
 
 #%%
-view_experiment(
-    "/workspace/CraftaxDevinterp/ExperimentData/all_inventory/results", 
+view_experiment_fillbetwween(
+    "/workspace/CraftaxDevinterp/ExperimentData/craftax_classic/all_inventory/results", 
     (0, 15), 
-    (0, 4), 
-    (0, 4), 
+    (0, 15), 
     (0, 15), 
     (0, 15)
 )
 
 #%%
 make_experiment_pca(
-    "/workspace/CraftaxDevinterp/ExperimentData/all_inventory/logits",
+    "/workspace/CraftaxDevinterp/ExperimentData/craftax_classic/all_inventory/logits",
     (0, 15), 
-    (0, 4), 
-    (0, 4), 
     (0, 15), 
-    (0, 15),
+    (0, 15), 
+    (0, 15), 
 )
 #%%
 view_experiment_pca(
-    "/workspace/CraftaxDevinterp/ExperimentData/all_inventory/pca",
+    "/workspace/CraftaxDevinterp/ExperimentData/craftax_classic/all_inventory/pca",
     (0, 15), 
-    (0, 4), 
-    (0, 4), 
-    (0, 15), 
-    (0, 15),
+    (0, 1), 
+    (0, 1), 
+    (0, 1), 
 )
 
 
