@@ -261,8 +261,8 @@ if __name__ == "__main__":
     print("rendering...")
     rgb = render_craftax_pixels(
         custom_state,
-        block_pixel_size=7, # or 16 or 64
+        block_pixel_size=64, # or 16 or 64
         do_night_noise=True,
     )
     plt.imshow(rgb/255)
-    plt.show()
+    plt.savefig("/workspace/CraftaxDevinterp/design_state.png")
