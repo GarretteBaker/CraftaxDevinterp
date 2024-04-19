@@ -49,7 +49,7 @@ def get_average_quantity(quantity, dones, dim):
 load_dir = "/workspace/CraftaxDevinterp/ExperimentData/trackers"
 block_placement_averages = np.zeros((1525, 4))
 block_mining_averages = np.zeros((1525, 13))
-player_location_averages = np.zeros((1525, 4))
+player_location_averages = np.zeros((1525, 2))
 player_do_averages = np.zeros((1525, 4))
 mob_kill_averages = np.zeros((1525, 3))
 mob_attack_averages = np.zeros((1525, 3))
@@ -59,19 +59,27 @@ for modelno in tqdm(range(0, 1525)):
         trajectory = pickle.load(f)
     with open(f"{load_dir}/{modelno}/done.pkl", "rb") as f:
         dones = pickle.load(f)
+
+    # print(trajectory.block_placements.shape)
+    # print(trajectory.block_mining.shape)
+    # print(trajectory.player_location.shape)
+    # print(trajectory.doings.shape)
+    # print(trajectory.mob_kills.shape)
+    # print(trajectory.mob_attacks.shape)
+
     
-    block_placement_averages = get_average_quantity(trajectory.block_placements, dones, 4)
-    block_placement_averages[modelno, :] = block_placement_averages
-    block_mining_averages = get_average_quantity(trajectory.block_mining, dones, 13)
-    block_mining_averages[modelno, :] = block_mining_averages
-    player_location_averages = get_average_quantity(trajectory.player_location, dones, 4)
-    player_location_averages[modelno, :] = player_location_averages
-    player_do_averages = get_average_quantity(trajectory.doings, dones, 4)
-    player_do_averages[modelno, :] = player_do_averages
-    mob_kill_averages = get_average_quantity(trajectory.mob_kills, dones, 3)
-    mob_kill_averages[modelno, :] = mob_kill_averages
-    mob_attack_averages = get_average_quantity(trajectory.mob_attacks, dones, 3)
-    mob_attack_averages[modelno, :] = mob_attack_averages
+    block_placement_average = get_average_quantity(trajectory.block_placements, dones, 4)
+    block_placement_averages[modelno, :] = block_placement_average
+    block_mining_average = get_average_quantity(trajectory.block_mining, dones, 13)
+    block_mining_averages[modelno, :] = block_mining_average
+    player_location_average = get_average_quantity(trajectory.player_location, dones, 2)
+    player_location_averages[modelno, :] = player_location_average
+    player_do_average = get_average_quantity(trajectory.doings, dones, 4)
+    player_do_averages[modelno, :] = player_do_average
+    mob_kill_average = get_average_quantity(trajectory.mob_kills, dones, 3)
+    mob_kill_averages[modelno, :] = mob_kill_average
+    mob_attack_average = get_average_quantity(trajectory.mob_attacks, dones, 3)
+    mob_attack_averages[modelno, :] = mob_attack_average
 
 with open(f"{load_dir}/block_placement_averages.pkl", "wb") as f:
     pickle.dump(block_placement_averages, f)
