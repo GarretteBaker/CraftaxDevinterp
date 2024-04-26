@@ -690,7 +690,7 @@ def make_train(config):
             t = jnp.arange(0, n+1)
             p = lambda t: t/n
             timing = jnp.vectorize(lambda t: jnp.floor(T ** (p(t))))
-            save_schedule = set(timing(t))
+            save_schedule = set(jax.device_get(timing(t)))
             save_schedule.add(0)
 
             metric = 0
