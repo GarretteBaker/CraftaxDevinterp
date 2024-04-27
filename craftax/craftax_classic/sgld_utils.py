@@ -112,8 +112,19 @@ def sgld_run(
         loss_fn, 
         num_steps, 
         opt_state,
-        param
+        param,
+        itemp,
+        sgld_config
 ):
+    local_logprob = create_local_logposterior(
+        avgnegloglikelihood_fn=loss_fn,
+        num_training_data=x_train.shape[0],
+        w_init=param,
+        gamma=sgld_config.gamma,
+        itemp=itemp,
+    )
+    sgld_grad_fn = jax.value_and_grad(lambda w, x, y: -local_logprob(w, x, y), argnums=0)
+
     def sgld_step(optstateparam, unused):
         opt_state, param = optstateparam
         i = 0
@@ -149,13 +160,13 @@ def get_sgld_params(rngkey, loss_fn, sgld_config, param_init, x_train, y_train, 
         itemp = 1 / jnp.log(num_training_data)
     local_logprob = create_local_logposterior(
         avgnegloglikelihood_fn=loss_fn,
-        num_training_data=num_training_data,
+        num_training_data=x_train.shape[0],
         w_init=param_init,
         gamma=sgld_config.gamma,
         itemp=itemp,
     )
-    sgld_grad_fn = jax.jit(jax.value_and_grad(lambda w, x, y: -local_logprob(w, x, y), argnums=0))
-    
+    sgld_grad_fn = jax.value_and_grad(lambda w, x, y: -local_logprob(w, x, y), argnums=0)
+
     sgldoptim = optim_sgld(sgld_config.epsilon, rngkey)
     loss_trace = []
     distances = []
