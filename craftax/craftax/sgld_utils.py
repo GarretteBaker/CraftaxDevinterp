@@ -139,9 +139,9 @@ def sgld_run(
         )
         return (opt_state, param), losses
     (opt_state, param), losses = jax.lax.scan(
-        sgld_step, (opt_state, param), None, length = num_steps
+        sgld_step, (opt_state, param), None, length = num_steps//(x_train.shape[0]//batch_size)+1
     )
-    return losses        
+    return losses.flatten()
 
 def get_sgld_params(rngkey, loss_fn, sgld_config, param_init, x_train, y_train, itemp=None, trace_batch_loss=True, compute_distance=False, verbose=False):
     num_training_data = len(x_train)
