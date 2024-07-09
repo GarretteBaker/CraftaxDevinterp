@@ -17,9 +17,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "tensorflow[and-cuda]",
+    "tensorflow",
     "tf_keras",
-    "jax[cuda12_pip] @ https://storage.googleapis.com/jax-releases/jax_cuda_releases.html",
+    "jax",
     "distrax", 
     "optax",
     "flax",
