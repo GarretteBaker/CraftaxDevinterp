@@ -17,14 +17,16 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "jax",
-    "distrax",
+    "tensorflow[and-cuda]",
+    "tf_keras",
+    "jax[cuda12_pip] @ https://storage.googleapis.com/jax-releases/jax_cuda_releases.html",
+    "distrax", 
     "optax",
     "flax",
     "numpy",
     "black",
     "pre-commit",
-    "argparse",
+    "argparse", 
     "wandb",
     "orbax-checkpoint",
     "pygame",
@@ -32,7 +34,7 @@ dependencies = [
     "chex",
     "matplotlib",
     "imageio",
-    "dm-haiku", 
+    "dm-haiku",
     "seaborn"
 ]
 
