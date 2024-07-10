@@ -15,6 +15,7 @@ from orbax.checkpoint import (
     CheckpointManagerOptions,
     CheckpointManager,
 )
+import orbax.checkpoint as ocp
 
 import wandb
 from flax.linen.initializers import constant, orthogonal
@@ -30,6 +31,11 @@ from craftax.environment_base.wrappers import (
     BatchEnvWrapper,
 )
 from craftax.logz.batch_logging import create_log_dict, batch_log
+
+class MetricObs(NamedTuple):
+    metric: jnp.ndarray = jnp.array([])
+    obses: jnp.ndarray = jnp.array([])
+    traj: jnp.ndarray = jnp.array([])
 
 
 class ScannedRNN(nn.Module):
@@ -421,6 +427,13 @@ def make_train(config):
                 / traj_batch.info["returned_episode"].sum(),
                 traj_batch.info,
             )
+            if config["SAVE_TRAJ"]:
+                traj = update_state[0].params
+            else:
+                traj = None
+
+            metric_obs = MetricObs(metric=metric, obses=None, traj=traj)
+
             rng = update_state[-1]
             if config["DEBUG"] and config["USE_WANDB"]:
 
@@ -439,7 +452,7 @@ def make_train(config):
                 rng,
                 update_step + 1,
             )
-            return runner_state, metric
+            return runner_state, metric_obs
 
         rng, _rng = jax.random.split(rng)
         runner_state = (
@@ -451,10 +464,24 @@ def make_train(config):
             _rng,
             0,
         )
-        runner_state, metric = jax.lax.scan(
-            _update_step, runner_state, None, config["NUM_UPDATES"]
-        )
-        return {"runner_state": runner_state, "metric": metric}
+
+        if config["SAVE_TRAJ"]:
+            metric = 0
+            _update_step_jit = jax.jit(_update_step)
+            for update_no in range(int(config["NUM_UPDATES"])):
+                runner_state, single_metric_obs = _update_step_jit(runner_state, metric)
+                trajectory = single_metric_obs.traj
+                os.makedirs(f"/workspace/CraftaxDevinterp/intermediate_rnn/{update_no}", exist_ok=True)
+                path = ocp.test_utils.erase_and_create_empty(f"/workspace/CraftaxDevinterp/intermediate_rnn/{update_no}")
+                checkpoint_name = f"model_{update_no}"
+                checkpointer = ocp.StandardCheckpointer()
+                checkpointer.save(path / checkpoint_name, trajectory)
+        else:
+            runner_state, metric = jax.lax.scan(
+                _update_step, runner_state, None, config["NUM_UPDATES"]
+            )
+
+        return {"runner_state": runner_state}
 
     return train
 
@@ -476,12 +503,18 @@ def run_ppo(config):
     rng = jax.random.PRNGKey(config["SEED"])
     rngs = jax.random.split(rng, config["NUM_REPEATS"])
 
-    train_jit = jax.jit(make_train(config))
-    train_vmap = jax.vmap(train_jit)
+    if config["SAVE_TRAJ"]:
+        t0 = time.time()
+        train = make_train(config)
+        out = train(rng)
+        t1 = time.time()
+    else:
+        train_jit = jax.jit(make_train(config))
+        train_vmap = jax.vmap(train_jit)
 
-    t0 = time.time()
-    out = train_vmap(rngs)
-    t1 = time.time()
+        t0 = time.time()
+        out = train_vmap(rngs)
+        t1 = time.time()
     print("Time to run experiment", t1 - t0)
     print("SPS: ", config["TOTAL_TIMESTEPS"] / (t1 - t0))
 
@@ -508,13 +541,15 @@ def run_ppo(config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env_name", type=str, default="Craftax-Symbolic-v1")
+    parser.add_argument("--env_name", type= str, default="Craftax-Symbolic-v1")
     parser.add_argument(
         "--num_envs",
         type=int,
         default=1024,
     )
-    parser.add_argument("--total_timesteps", type=int, default=1e9)
+    parser.add_argument(
+        "--total_timesteps", type=lambda x: int(float(x)), default=1e6
+    )  # Allow scientific notation
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--num_steps", type=int, default=64)
     parser.add_argument("--update_epochs", type=int, default=4)
@@ -546,6 +581,9 @@ if __name__ == "__main__":
         "--use_optimistic_resets", action=argparse.BooleanOptionalAction, default=True
     )
     parser.add_argument("--optimistic_reset_ratio", type=int, default=16)
+
+    # DEV INTERP
+    parser.add_argument("--save_traj", action="store_true")
 
     args, rest_args = parser.parse_known_args(sys.argv[1:])
     if rest_args:
