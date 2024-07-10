@@ -35,7 +35,8 @@ dependencies = [
     "matplotlib",
     "imageio",
     "dm-haiku",
-    "seaborn"
+    "seaborn", 
+    "plotly"
 ]
 
 [project.scripts]
