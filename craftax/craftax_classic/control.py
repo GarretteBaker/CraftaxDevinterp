@@ -120,7 +120,7 @@ def generate_test_world(
             (max_mobs),
             dtype=bool,
         )
-        mask = mask.at[0].set(False)
+        mask = mask.at[0].set(True)
         attack_cooldown=jnp.zeros(
             (max_mobs),
             dtype=jnp.int32,
@@ -873,7 +873,7 @@ def generate_melee_mob(max_mobs, x, y):
         (max_mobs),
         dtype=bool,
     )
-    mask = mask.at[0].set(False)
+    mask = mask.at[0].set(True)
     attack_cooldown=jnp.zeros(
         (max_mobs),
         dtype=jnp.int32,
@@ -894,8 +894,8 @@ def add_zombie(state):
     player_position = state.player_position
     block_position = player_position + DIRECTIONS[player_direction]
     static_params = StaticEnvParams()
-    zombie = generate_melee_mob(static_params.max_zombies, 24, 23)
-    mob_map = state.mob_map.at[24, 23].set(True)
+    zombie = generate_melee_mob(static_params.max_zombies, block_position[0], block_position[1])
+    mob_map = state.mob_map.at[block_position[0], block_position[1]].set(False)
     return EnvState(
         map = state.map, 
         player_position = state.player_position,
@@ -1071,9 +1071,23 @@ from craftax.craftax_classic.envs.craftax_symbolic_env import CraftaxClassicSymb
 import matplotlib.pyplot as plt
 import orbax.checkpoint as ocp
 import os
-
+#%%
+rng = jax.random.PRNGKey(0)
+state = generate_test_world(
+    rng, 
+    9, 
+    0,
+)
+rgb = render_craftax_pixels(
+    state,
+    block_pixel_size = 16
+)
+plt.imshow(rgb/255)
+plt.show()
+#%%
 env = CraftaxClassicSymbolicEnv()
 rng = jax.random.PRNGKey(0)
+#%%
 def generate_states(carry, unused):
     rng, i = carry
     rng, env_rng = jax.random.split(rng)
@@ -1081,6 +1095,13 @@ def generate_states(carry, unused):
     # state = give_plant(state)
     # state = add_wood(state)
     state = add_zombie(state)
+    # local_position = state.zombies.position[0] - state.player_position + jnp.array([constants.OBS_DIM[0], constants.OBS_DIM[1]]) // 2
+    # on_screen = jnp.logical_and(
+    #     local_position >= 0, local_position < jnp.array([constants.OBS_DIM[0], constants.OBS_DIM[1]])
+    # ).all()
+    # on_screen *= state.zombies.mask[0]
+    # print(on_screen)
+
     obs = render_craftax_symbolic(state)
     obs_pix = render_craftax_pixels(
         state, 
@@ -1088,8 +1109,9 @@ def generate_states(carry, unused):
     )
                                     
     return (rng, i+1), (obs, obs_pix)
+generate_states((rng, 0), None)
 _, (zombie_states, zombie_pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
-
+#%%
 def generate_states(carry, unused):
     rng, i = carry
     rng, env_rng = jax.random.split(rng)
@@ -1104,7 +1126,6 @@ def generate_states(carry, unused):
     )
     return (rng, i+1), (obs, obs_pix)
 _, (control_states, control_pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
-
 
 vectorized_acts = jax.jit(jax.vmap(get_activations, in_axes=(0, None), out_axes=0))
 
