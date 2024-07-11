@@ -809,34 +809,121 @@ def randomize_inventory(state, rng):
         timestep=state.timestep
     )
 
+from typing import Sequence
+import flax.linen as nn
+from flax.linen.initializers import constant, orthogonal
+import distrax
+
+class ActorCritic_with_hook(nn.Module):
+    action_dim: Sequence[int]
+    layer_width: int
+    activation: str = "relu"
+
+    @nn.compact
+    def __call__(self, x):
+        if self.activation == "relu":
+            activation = nn.relu
+        else:
+            activation = nn.tanh
+        activations = list()
+        actor_mean = nn.Dense(
+            self.layer_width,
+            kernel_init=orthogonal(np.sqrt(2)),
+            bias_init=constant(0.0),
+        )(x)
+        actor_mean = activation(actor_mean)
+        activations.append(actor_mean)
+
+        actor_mean = nn.Dense(
+            self.layer_width,
+            kernel_init=orthogonal(np.sqrt(2)),
+            bias_init=constant(0.0),
+        )(actor_mean)
+        actor_mean = activation(actor_mean)
+        activations.append(actor_mean)
+
+        actor_mean = nn.Dense(
+            self.layer_width,
+            kernel_init=orthogonal(np.sqrt(2)),
+            bias_init=constant(0.0),
+        )(actor_mean)
+        actor_mean = activation(actor_mean)
+        activations.append(actor_mean)
+
+        actor_mean = nn.Dense(
+            self.action_dim, kernel_init=orthogonal(0.01), bias_init=constant(0.0)
+        )(actor_mean)
+        activations.append(actor_mean)
+        pi = distrax.Categorical(logits=actor_mean)
+
+        critic = nn.Dense(
+            self.layer_width,
+            kernel_init=orthogonal(np.sqrt(2)),
+            bias_init=constant(0.0),
+        )(x)
+        critic = activation(critic)
+
+        critic = nn.Dense(
+            self.layer_width,
+            kernel_init=orthogonal(np.sqrt(2)),
+            bias_init=constant(0.0),
+        )(critic)
+        critic = activation(critic)
+
+        critic = nn.Dense(
+            self.layer_width,
+            kernel_init=orthogonal(np.sqrt(2)),
+            bias_init=constant(0.0),
+        )(critic)
+        critic = activation(critic)
+
+        critic = nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0))(
+            critic
+        )
+
+        return pi, jnp.squeeze(critic, axis=-1), activations
+
+
+def get_activations(obs, params):
+    network = ActorCritic_with_hook(17, 512)
+    _, _, activations = network.apply(params, obs)
+    return activations
+
 #%%
 from craftax.craftax_classic.envs.craftax_symbolic_env import CraftaxClassicSymbolicEnv
 import matplotlib.pyplot as plt
+import orbax.checkpoint as ocp
+import os
 
 env = CraftaxClassicSymbolicEnv()
 rng = jax.random.PRNGKey(0)
-rng, env_rng = jax.random.split(rng)
-# obs, state = env.reset(env_rng)
+states = list()
+for i in range(512):
+    rng, env_rng = jax.random.split(rng)
+    obs, state = env.reset(env_rng)
+    state = add_wood(state)
+    state = randomize_inventory(state, rng)
+    obs = render_craftax_symbolic(state)
+    states.append(obs)
+states = jnp.stack(states)
 
-# state = add_wood(state)
-# rgb = render_craftax_pixels(
-#     state, 
-#     block_pixel_size=16
-# )
-# plt.imshow(rgb/255)
-# plt.savefig("/workspace/CraftaxDevinterp/woodstate1.png")
+vectorized_acts = jax.vmap(get_activations, in_axes=(0, None), out_axes=0)
 
-rng, env_rng = jax.random.split(rng)
-obs, state = env.reset(env_rng)
-
-state = add_wood(state)
-state = randomize_inventory(state, rng)
-rgb = render_craftax_pixels(
-    state, 
-    block_pixel_size=16
-)
-plt.imshow(rgb/255)
-plt.savefig("/workspace/CraftaxDevinterp/woodstate.png")
-
+checkpointer = ocp.StandardCheckpointer()
+checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1000}"
+folder_list = os.listdir(checkpoint_directory)
+params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+#%%
+activations = vectorized_acts(states, params)
+for i, activation in enumerate(activations):
+    u, s, v = jnp.linalg.svd(activation, full_matrices=False)
+    plt.plot(s)
+    plt.title(f"Singular Values of Activations for layer {i}")
+    plt.show()
 
 #%%
+for i, activation in enumerate(activations):
+    plt.imshow(activation)
+    plt.title(f"Activations for layer {i}")
+    plt.show()
+# %%
