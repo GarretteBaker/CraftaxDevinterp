@@ -910,10 +910,9 @@ states = jnp.stack(states)
 vectorized_acts = jax.vmap(get_activations, in_axes=(0, None), out_axes=0)
 
 checkpointer = ocp.StandardCheckpointer()
-checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1000}"
+checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-#%%
 activations = vectorized_acts(states, params)
 for i, activation in enumerate(activations):
     u, s, v = jnp.linalg.svd(activation, full_matrices=False)
@@ -921,7 +920,6 @@ for i, activation in enumerate(activations):
     plt.title(f"Singular Values of Activations for layer {i}")
     plt.show()
 
-#%%
 for i, activation in enumerate(activations):
     plt.imshow(activation)
     plt.title(f"Activations for layer {i}")
