@@ -857,7 +857,73 @@ def give_plant(state):
         state_rng=state.state_rng,
         timestep=state.timestep
     )
-        
+
+def generate_melee_mob(max_mobs, x, y):
+    position=jnp.zeros(
+        (max_mobs, 2),
+        dtype=jnp.int32,
+    )
+    position = position.at[0, 0].set(x)
+    position = position.at[0, 1].set(y)
+    health=jnp.ones(
+        (max_mobs),
+        dtype=jnp.float32,
+    )
+    mask=jnp.zeros(
+        (max_mobs),
+        dtype=bool,
+    )
+    mask = mask.at[0].set(False)
+    attack_cooldown=jnp.zeros(
+        (max_mobs),
+        dtype=jnp.int32,
+    )
+    # type_id = type_id.at[0, 0].set(1)
+    return Mobs(
+        position = position, 
+        health = health,
+        mask = mask, 
+        attack_cooldown = attack_cooldown, 
+    )
+
+
+@jax.jit
+def add_zombie(state):
+    print("adding zombie")
+    player_direction = state.player_direction
+    player_position = state.player_position
+    block_position = player_position + DIRECTIONS[player_direction]
+    static_params = StaticEnvParams()
+    zombie = generate_melee_mob(static_params.max_zombies, 24, 23)
+    mob_map = state.mob_map.at[24, 23].set(True)
+    return EnvState(
+        map = state.map, 
+        player_position = state.player_position,
+        player_direction = state.player_direction,
+        player_health = state.player_health,
+        player_food = state.player_food,
+        player_drink = state.player_drink,
+        player_energy = state.player_energy,
+        player_recover = state.player_recover,
+        player_hunger = state.player_hunger,
+        player_thirst = state.player_thirst,
+        player_fatigue = state.player_fatigue,
+        is_sleeping = state.is_sleeping,
+        inventory = state.inventory,
+        mob_map = mob_map,
+        zombies = zombie,
+        cows = state.cows,
+        skeletons = state.skeletons,
+        arrows = state.arrows,
+        arrow_directions = state.arrow_directions,
+        growing_plants_positions = state.growing_plants_positions,
+        growing_plants_age = state.growing_plants_age,
+        growing_plants_mask = state.growing_plants_mask,
+        achievements = state.achievements,
+        light_level = state.light_level,
+        state_rng = state.state_rng,
+        timestep = state.timestep
+    )
 
 @jax.jit
 def randomize_inventory(state, rng):
@@ -1014,9 +1080,31 @@ def generate_states(carry, unused):
     obs, state = env.reset(env_rng)
     # state = give_plant(state)
     # state = add_wood(state)
+    state = add_zombie(state)
     obs = render_craftax_symbolic(state)
-    return (rng, i+1), obs
-_, states = jax.lax.scan(generate_states, (rng, 0), None, length=525)
+    obs_pix = render_craftax_pixels(
+        state, 
+        block_pixel_size = 16
+    )
+                                    
+    return (rng, i+1), (obs, obs_pix)
+_, (zombie_states, zombie_pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
+
+def generate_states(carry, unused):
+    rng, i = carry
+    rng, env_rng = jax.random.split(rng)
+    obs, state = env.reset(env_rng)
+    # state = give_plant(state)
+    # state = add_wood(state)
+    # state = add_zombie(state)
+    obs = render_craftax_symbolic(state)
+    obs_pix = render_craftax_pixels(
+        state, 
+        block_pixel_size = 16
+    )
+    return (rng, i+1), (obs, obs_pix)
+_, (control_states, control_pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
+
 
 vectorized_acts = jax.jit(jax.vmap(get_activations, in_axes=(0, None), out_axes=0))
 
@@ -1024,23 +1112,40 @@ checkpointer = ocp.StandardCheckpointer()
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-activations = vectorized_acts(states, params)
-os.makedirs("/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/control", exist_ok=True)
-for i, activation in enumerate(activations):
-    u, s, v = jnp.linalg.svd(activation, full_matrices=False)
+zombie_activations = vectorized_acts(zombie_states, params)
+control_activations = vectorized_acts(control_states, params)
+save_dir = "/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/zombie-control"
+os.makedirs(save_dir, exist_ok=True)
+for i, zombie_activation in enumerate(zombie_activations):
+    control_activation = control_activations[i]
+    u, s, v = jnp.linalg.svd(zombie_activation - control_activation, full_matrices=False)
     plt.plot(s)
     plt.title(f"Singular Values of Activations for layer {i}")
-    plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/control/singular_values_{i}.png")
+    plt.savefig(f"{save_dir}/singular_values_{i}.png")
     plt.close()
 
 
-for i, activation in enumerate(activations):
-    plt.imshow(activation, cmap="viridis")
+for i, zombie_activation in enumerate(zombie_activations):
+    control_activation = control_activations[i]
+    plt.imshow(zombie_activation - control_activation, cmap="viridis")
     plt.title(f"Activations for layer {i}")
     plt.colorbar()
-    plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/control/activations_{i}.png")
+    plt.savefig(f"{save_dir}/activations_{i}.png")
     plt.close()
 
+for i in range(5):
+    state_no = i * 100
+    zombie_pixel = zombie_pixels[state_no, ...]/255
+    control_pixel = control_pixels[state_no, ...]/255
+
+    plt.imshow(zombie_pixel)
+    plt.title(f"Zombie State {state_no}")
+    plt.savefig(f"{save_dir}/zombie_state_{state_no}.png")
+    plt.close()
+    plt.imshow(control_pixel)
+    plt.title(f"Control State {state_no}")
+    plt.savefig(f"{save_dir}/control_state_{state_no}.png")
+    plt.close()
 # %%
 # conclusion: it is indifferent between whether there's a wood or stone in front of it.
 # It immediately recognizes that both imply it should execute the DO action, and so it has
