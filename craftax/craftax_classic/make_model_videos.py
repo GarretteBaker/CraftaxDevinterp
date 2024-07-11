@@ -181,7 +181,7 @@ checkpoint_list = os.listdir(checkpoint_directory)
 num_models = len(checkpoint_list)
 
 # selected_models = [0, 200, 822, 1100, 1600]
-selected_models = [200, 822, 1100, 1600]
+selected_models = [200, 822, 1100, 1524]
 for modelno in tqdm(selected_models, desc="Model"):
     checkpointer = ocp.StandardCheckpointer()
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{checkpoint_list[modelno]}"

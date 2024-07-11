@@ -425,7 +425,7 @@ def generate_trajectory(network_params, rng, num_envs=64, num_steps=num_steps):
     env = AutoResetEnvWrapper(env)
     env = BatchEnvWrapper(env, num_envs)
     env_params = env.default_params
-    network = ActorCritic(env.action_space(env_params).n, 512)
+    network = ActorCritic(env.action_space(env_params).n, 512, activation="relu")
 
     class Transition(NamedTuple):
         tracking: jnp.ndarray
