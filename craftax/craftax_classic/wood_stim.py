@@ -749,6 +749,57 @@ def add_wood(state):
         timestep=state.timestep
     )
 
+@jax.jit
+def add_stone(state):
+    map = state.map
+    player_direction = state.player_direction
+    player_position = state.player_position
+    block_position = player_position + DIRECTIONS[player_direction]
+
+    map = map.at[block_position[0], block_position[1]].set(constants.BlockType.STONE.value)
+    return EnvState(
+        # world
+        map=map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=state.inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+@jax.jit
 def randomize_inventory(state, rng):
     inventory_rngs = jax.random.split(rng, 13)
     rng = inventory_rngs[-1]
@@ -897,45 +948,51 @@ import os
 
 env = CraftaxClassicSymbolicEnv()
 rng = jax.random.PRNGKey(0)
-states = list()
-for i in range(512):
+def generate_states(carry, unused):
+    rng, i = carry
     rng, env_rng = jax.random.split(rng)
     obs, state = env.reset(env_rng)
-    state = add_wood(state)
     state = randomize_inventory(state, rng)
-    if i % 100 == 0:
-        rgb = render_craftax_pixels(
-            state,
-            block_pixel_size=16, # or 16 or 64
-        )
-        plt.imshow(rgb/255)
-        plt.title(f"environment {i}")
-        plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/environment_{i}.png")
-        plt.close()
-    obs = render_craftax_symbolic(state)
-    states.append(obs)
-states = jnp.stack(states)
+    stone_state = add_stone(state)
+    wood_state = add_wood(state)
 
-vectorized_acts = jax.vmap(get_activations, in_axes=(0, None), out_axes=0)
+    stone_obs = render_craftax_symbolic(stone_state)
+    wood_obs = render_craftax_symbolic(wood_state)
+    return (rng, i+1), (stone_obs, wood_obs)
+_, (stone_states, wood_states) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
+
+vectorized_acts = jax.jit(jax.vmap(get_activations, in_axes=(0, None), out_axes=0))
 
 checkpointer = ocp.StandardCheckpointer()
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-activations = vectorized_acts(states, params)
-os.makedirs("/workspace/CraftaxDevinterp/intermediate_data/modelno_1524", exist_ok=True)
-for i, activation in enumerate(activations):
-    u, s, v = jnp.linalg.svd(activation, full_matrices=False)
+stone_activations = vectorized_acts(stone_states, params)
+wood_activations = vectorized_acts(wood_states, params)
+os.makedirs("/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/stone", exist_ok=True)
+os.makedirs("/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/wood", exist_ok=True)
+os.makedirs("/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/stone-wood", exist_ok=True)
+for i, stone_activation in enumerate(stone_activations):
+    wood_activation = wood_activations[i]
+    u, s, v = jnp.linalg.svd(stone_activation - wood_activation, full_matrices=False)
     plt.plot(s)
     plt.title(f"Singular Values of Activations for layer {i}")
-    plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/singular_values_{i}.png")
+    plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/stone-wood/singular_values_{i}.png")
     plt.close()
 
 
-for i, activation in enumerate(activations):
-    plt.imshow(activation)
+for i, stone_activation in enumerate(stone_activations):
+    wood_activation = wood_activations[i]
+    plt.imshow(stone_activation - wood_activation, cmap="viridis")
     plt.title(f"Activations for layer {i}")
-    plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/activations_{i}.png")
+    plt.colorbar()
+    plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/stone-wood/activations_{i}.png")
     plt.close()
+    print(f"Norm of difference for layer {i}: {jnp.linalg.norm(stone_activation - wood_activation)}")
+    print(f"NOrm of wood activations for layer {i}: {jnp.linalg.norm(wood_activation)}")
+    print(f"Norm of stone activations for layer {i}: {jnp.linalg.norm(stone_activation)}")
 
 # %%
+# conclusion: it is indifferent between whether there's a wood or stone in front of it.
+# It immediately recognizes that both imply it should execute the DO action, and so it has
+# the same representation for both situations.
