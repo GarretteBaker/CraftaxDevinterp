@@ -903,6 +903,15 @@ for i in range(512):
     obs, state = env.reset(env_rng)
     state = add_wood(state)
     state = randomize_inventory(state, rng)
+    if i % 100 == 0:
+        rgb = render_craftax_pixels(
+            state,
+            block_pixel_size=16, # or 16 or 64
+        )
+        plt.imshow(rgb/255)
+        plt.title(f"environment {i}")
+        plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/environment_{i}.png")
+        plt.close()
     obs = render_craftax_symbolic(state)
     states.append(obs)
 states = jnp.stack(states)
@@ -914,14 +923,19 @@ checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 activations = vectorized_acts(states, params)
+os.makedirs("/workspace/CraftaxDevinterp/intermediate_data/modelno_1524", exist_ok=True)
 for i, activation in enumerate(activations):
     u, s, v = jnp.linalg.svd(activation, full_matrices=False)
     plt.plot(s)
     plt.title(f"Singular Values of Activations for layer {i}")
-    plt.show()
+    plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/singular_values_{i}.png")
+    plt.close()
+
 
 for i, activation in enumerate(activations):
     plt.imshow(activation)
     plt.title(f"Activations for layer {i}")
-    plt.show()
+    plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/activations_{i}.png")
+    plt.close()
+
 # %%

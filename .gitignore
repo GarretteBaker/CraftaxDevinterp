@@ -171,6 +171,7 @@ texture_cache*.pbz2
 # others
 intermediate/
 intermediate_rnn/
+intermediate_data/
 frames/
 llc_estimation/
 ExperimentData/
