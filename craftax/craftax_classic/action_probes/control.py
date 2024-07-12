@@ -2221,7 +2221,7 @@ from tqdm import tqdm
 jitted_action_activations = jax.jit(get_action_activations, static_argnames=("action", "env", "seed", "debug"))
 jitted_vec_addition_result = jax.jit(get_vec_addition_result, static_argnames=("situation", "env", "layer", "seed", "debug"))
 
-pbar = tqdm(total=4*1525)
+pbar = tqdm(total=6*1525)
 for intervention in ("table", "planting", "wood_tool", "place_stone", "stone_tool", "iron_tool"):
     intervention_no_table = {
         "table": (8), 
