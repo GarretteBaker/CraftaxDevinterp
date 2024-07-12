@@ -1103,6 +1103,106 @@ def add_table(state):
     )
 
 @jax.jit
+def add_coal(state):
+    map = state.map
+    player_direction = state.player_direction
+    player_position = state.player_position
+    block_position = player_position + DIRECTIONS[player_direction]
+
+    map = map.at[block_position[0], block_position[1]].set(constants.BlockType.COAL.value)
+    return EnvState(
+        # world
+        map=map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=state.inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+def add_iron(state):
+    map = state.map
+    player_direction = state.player_direction
+    player_position = state.player_position
+    block_position = player_position + DIRECTIONS[player_direction]
+
+    map = map.at[block_position[0], block_position[1]].set(constants.BlockType.IRON.value)
+    return EnvState(
+        # world
+        map=map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=state.inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+
+@jax.jit
 def wood_tool_circumstance(state):
     # we first add a crafting table in front of agent, then we 
     # give it a bunch of wood in its inventory
@@ -2105,6 +2205,14 @@ def get_action_activations(
             state = stone_tool_circumstance(state) # increases p(behavior), but not quite working
         elif action == "iron_tool":
             state = iron_tool_circumstance(state) # actually working relatively well
+        elif action == "mine_wood":
+            state = add_wood(state)
+        elif action == "mine_stone":
+            state = add_stone(state)
+        elif action == "mine_coal":
+            state = add_coal(state)
+        elif action == "mine_iron":
+            state = add_iron(state)
         else:
             raise ValueError("Invalid action")
         obs = render_craftax_symbolic(state)
@@ -2175,6 +2283,14 @@ def get_vec_addition_result(
             state = stone_tool_circumstance(state) # increases p(behavior), but not quite working
         elif situation == "iron_tool":
             state = iron_tool_circumstance(state) # actually working relatively well
+        elif situation == "mine_wood":
+            state = add_wood(state)
+        elif situation == "mine_stone":
+            state = add_stone(state)
+        elif situation == "mine_coal":
+            state = add_coal(state)
+        elif situation == "mine_iron":
+            state = add_iron(state)
         else:
             raise ValueError("Invalid action")
         obs = render_craftax_symbolic(state)
@@ -2223,14 +2339,18 @@ jitted_vec_addition_result = jax.jit(get_vec_addition_result, static_argnames=("
 
 pbar = tqdm(total=3*6*1525)
 for layer_number in range(3):
-    for intervention in ("table", "planting", "wood_tool", "place_stone", "stone_tool", "iron_tool"):
+    for intervention in ("table", "planting", "wood_tool", "place_stone", "stone_tool", "iron_tool", "mine_wood", "mine_stone", "mine_coal", "mine_iron"):
         intervention_no_table = {
             "table": (8), 
             "planting": (10), 
             "wood_tool": (11, 14), 
             "place_stone": (7),
             "stone_tool": (12, 15),
-            "iron_tool": (13, 16)
+            "iron_tool": (13, 16), 
+            "mine_wood": (5),
+            "mine_stone": (5),
+            "mine_coal": (5),
+            "mine_iron": (5)
         }
         intervention_nos = intervention_no_table[intervention]
 
