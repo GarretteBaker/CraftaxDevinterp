@@ -2079,6 +2079,149 @@ rng = jax.random.PRNGKey(0)
 
 checkpointer = ocp.StandardCheckpointer()
 
+def get_action_activations(
+        action: str, 
+        env: CraftaxClassicSymbolicEnv, 
+        params, 
+        seed: int = 0, 
+        debug=False
+    ):
+    rng = jax.random.PRNGKey(seed)
+    def generate_states(carry, unused):
+        rng, i = carry
+        rng, env_rng = jax.random.split(rng)
+        obs, state = env.reset(env_rng)
+        if action == "control":
+            pass
+        elif action == "table":
+            state = give_wood_for_table(state) # verified working
+        elif action == "planting":
+            state = give_sapling_for_planting(state) # verified basically working
+        elif action == "wood_tool":
+            state = wood_tool_circumstance(state) # not quite working, but increases p(behavior)
+        elif action == "place_stone":
+            state = give_stone_for_furnace_and_placing_stone(state) # also working, but it only really places stone
+        elif action == "stone_tool":
+            state = stone_tool_circumstance(state) # increases p(behavior), but not quite working
+        elif action == "iron_tool":
+            state = iron_tool_circumstance(state) # actually working relatively well
+        else:
+            raise ValueError("Invalid action")
+        obs = render_craftax_symbolic(state)
+        obs_pix = render_craftax_pixels(
+            state, 
+            block_pixel_size = 16
+        )
+        return (rng, i+1), (obs, obs_pix)
+    _, (states, pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
+
+    vectorized_acts = jax.jit(jax.vmap(get_activations, in_axes=(0, None), out_axes=0))
+
+    activations = vectorized_acts(states, params)
+    if debug:
+        ACTION_MAP = {
+            0: "NOOP",
+            1: "LEFT",
+            2: "RIGHT",
+            3: "UP",
+            4: "DOWN",
+            5: "DO",
+            6: "SLEEP",
+            7: "PLACE_STONE",
+            8: "PLACE_TABLE",
+            9: "PLACE_FURNACE",
+            10: "PLACE_PLANT",
+            11: "MAKE_WOOD_PICKAXE",
+            12: "MAKE_STONE_PICKAXE",
+            13: "MAKE_IRON_PICKAXE",
+            14: "MAKE_WOOD_SWORD",
+            15: "MAKE_STONE_SWORD",
+            16: "MAKE_IRON_SWORD"
+        }
+
+        action = activations[-1]
+        maximum_action = jnp.argmax(action, axis=1)
+
+        for action in maximum_action:
+            human_readable = ACTION_MAP[action.item()]
+            print(human_readable)
+    return activations
+
+def get_vec_addition_result(
+        situation: str,
+        env: CraftaxClassicSymbolicEnv,
+        params: dict,
+        activation_addition,
+        layer: int,
+        seed: int = 0,
+        debug=False
+):
+    rng = jax.random.PRNGKey(seed)
+    def generate_states(carry, unused):
+        rng, i = carry
+        rng, env_rng = jax.random.split(rng)
+        obs, state = env.reset(env_rng)
+        if situation == "control":
+            pass
+        elif situation == "table":
+            state = give_wood_for_table(state) # verified working
+        elif situation == "planting":
+            state = give_sapling_for_planting(state) # verified basically working
+        elif situation == "wood_tool":
+            state = wood_tool_circumstance(state) # not quite working, but increases p(behavior)
+        elif situation == "place_stone":
+            state = give_stone_for_furnace_and_placing_stone(state) # also working, but it only really places stone
+        elif situation == "stone_tool":
+            state = stone_tool_circumstance(state) # increases p(behavior), but not quite working
+        elif situation == "iron_tool":
+            state = iron_tool_circumstance(state) # actually working relatively well
+        else:
+            raise ValueError("Invalid action")
+        obs = render_craftax_symbolic(state)
+        obs_pix = render_craftax_pixels(
+            state, 
+            block_pixel_size = 16
+        )
+        return (rng, i+1), (obs, obs_pix)
+    _, (states, pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
+
+    network = ActorCritic_with_hook(17, 512)
+    vectorized_vec_addition = jax.jit(network.add_act_to_layer, static_argnames=("layer"))
+    pi = vectorized_vec_addition(params, states, activation_addition, layer)
+    if debug:
+        ACTION_MAP = {
+            0: "NOOP",
+            1: "LEFT",
+            2: "RIGHT",
+            3: "UP",
+            4: "DOWN",
+            5: "DO",
+            6: "SLEEP",
+            7: "PLACE_STONE",
+            8: "PLACE_TABLE",
+            9: "PLACE_FURNACE",
+            10: "PLACE_PLANT",
+            11: "MAKE_WOOD_PICKAXE",
+            12: "MAKE_STONE_PICKAXE",
+            13: "MAKE_IRON_PICKAXE",
+            14: "MAKE_WOOD_SWORD",
+            15: "MAKE_STONE_SWORD",
+            16: "MAKE_IRON_SWORD"
+        }
+
+        action = pi.logits
+        maximum_action = jnp.argmax(action, axis=1)
+
+        for action in maximum_action:
+            human_readable = ACTION_MAP[action.item()]
+            print(human_readable)
+    return pi
+
+from tqdm import tqdm
+jitted_action_activations = jax.jit(get_action_activations, static_argnames=("action", "env", "seed", "debug"))
+jitted_vec_addition_result = jax.jit(get_vec_addition_result, static_argnames=("situation", "env", "layer", "seed", "debug"))
+
+pbar = tqdm(total=4*1525)
 for intervention in ("table", "planting", "wood_tool", "place_stone", "stone_tool", "iron_tool"):
     intervention_no_table = {
         "table": (8), 
@@ -2090,149 +2233,8 @@ for intervention in ("table", "planting", "wood_tool", "place_stone", "stone_too
     }
     intervention_nos = intervention_no_table[intervention]
 
-    def get_action_activations(
-            action: str, 
-            env: CraftaxClassicSymbolicEnv, 
-            params, 
-            seed: int = 0, 
-            debug=False
-        ):
-        rng = jax.random.PRNGKey(seed)
-        def generate_states(carry, unused):
-            rng, i = carry
-            rng, env_rng = jax.random.split(rng)
-            obs, state = env.reset(env_rng)
-            if action == "control":
-                pass
-            elif action == "table":
-                state = give_wood_for_table(state) # verified working
-            elif action == "planting":
-                state = give_sapling_for_planting(state) # verified basically working
-            elif action == "wood_tool":
-                state = wood_tool_circumstance(state) # not quite working, but increases p(behavior)
-            elif action == "place_stone":
-                state = give_stone_for_furnace_and_placing_stone(state) # also working, but it only really places stone
-            elif action == "stone_tool":
-                state = stone_tool_circumstance(state) # increases p(behavior), but not quite working
-            elif action == "iron_tool":
-                state = iron_tool_circumstance(state) # actually working relatively well
-            else:
-                raise ValueError("Invalid action")
-            obs = render_craftax_symbolic(state)
-            obs_pix = render_craftax_pixels(
-                state, 
-                block_pixel_size = 16
-            )
-            return (rng, i+1), (obs, obs_pix)
-        _, (states, pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
-
-        vectorized_acts = jax.jit(jax.vmap(get_activations, in_axes=(0, None), out_axes=0))
-
-        activations = vectorized_acts(states, params)
-        if debug:
-            ACTION_MAP = {
-                0: "NOOP",
-                1: "LEFT",
-                2: "RIGHT",
-                3: "UP",
-                4: "DOWN",
-                5: "DO",
-                6: "SLEEP",
-                7: "PLACE_STONE",
-                8: "PLACE_TABLE",
-                9: "PLACE_FURNACE",
-                10: "PLACE_PLANT",
-                11: "MAKE_WOOD_PICKAXE",
-                12: "MAKE_STONE_PICKAXE",
-                13: "MAKE_IRON_PICKAXE",
-                14: "MAKE_WOOD_SWORD",
-                15: "MAKE_STONE_SWORD",
-                16: "MAKE_IRON_SWORD"
-            }
-
-            action = activations[-1]
-            maximum_action = jnp.argmax(action, axis=1)
-
-            for action in maximum_action:
-                human_readable = ACTION_MAP[action.item()]
-                print(human_readable)
-        return activations
-
-    def get_vec_addition_result(
-            situation: str,
-            env: CraftaxClassicSymbolicEnv,
-            params: dict,
-            activation_addition,
-            layer: int,
-            seed: int = 0,
-            debug=False
-    ):
-        rng = jax.random.PRNGKey(seed)
-        def generate_states(carry, unused):
-            rng, i = carry
-            rng, env_rng = jax.random.split(rng)
-            obs, state = env.reset(env_rng)
-            if situation == "control":
-                pass
-            elif situation == "table":
-                state = give_wood_for_table(state) # verified working
-            elif situation == "planting":
-                state = give_sapling_for_planting(state) # verified basically working
-            elif situation == "wood_tool":
-                state = wood_tool_circumstance(state) # not quite working, but increases p(behavior)
-            elif situation == "place_stone":
-                state = give_stone_for_furnace_and_placing_stone(state) # also working, but it only really places stone
-            elif situation == "stone_tool":
-                state = stone_tool_circumstance(state) # increases p(behavior), but not quite working
-            elif situation == "iron_tool":
-                state = iron_tool_circumstance(state) # actually working relatively well
-            else:
-                raise ValueError("Invalid action")
-            obs = render_craftax_symbolic(state)
-            obs_pix = render_craftax_pixels(
-                state, 
-                block_pixel_size = 16
-            )
-            return (rng, i+1), (obs, obs_pix)
-        _, (states, pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
-
-        network = ActorCritic_with_hook(17, 512)
-        vectorized_vec_addition = jax.jit(network.add_act_to_layer, static_argnames=("layer"))
-        pi = vectorized_vec_addition(params, states, activation_addition, layer)
-        if debug:
-            ACTION_MAP = {
-                0: "NOOP",
-                1: "LEFT",
-                2: "RIGHT",
-                3: "UP",
-                4: "DOWN",
-                5: "DO",
-                6: "SLEEP",
-                7: "PLACE_STONE",
-                8: "PLACE_TABLE",
-                9: "PLACE_FURNACE",
-                10: "PLACE_PLANT",
-                11: "MAKE_WOOD_PICKAXE",
-                12: "MAKE_STONE_PICKAXE",
-                13: "MAKE_IRON_PICKAXE",
-                14: "MAKE_WOOD_SWORD",
-                15: "MAKE_STONE_SWORD",
-                16: "MAKE_IRON_SWORD"
-            }
-
-            action = pi.logits
-            maximum_action = jnp.argmax(action, axis=1)
-
-            for action in maximum_action:
-                human_readable = ACTION_MAP[action.item()]
-                print(human_readable)
-        return pi
-
-    from tqdm import tqdm
-    jitted_action_activations = jax.jit(get_action_activations, static_argnames=("action", "env", "seed", "debug"))
-    jitted_vec_addition_result = jax.jit(get_vec_addition_result, static_argnames=("situation", "env", "layer", "seed", "debug"))
     fracs = list()
-    for checkpoint_no in tqdm(range(1525)):
+    for checkpoint_no in range(1525):
         checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{checkpoint_no}"
         folder_list = os.listdir(checkpoint_directory)
         params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
@@ -2263,11 +2265,14 @@ for intervention in ("table", "planting", "wood_tool", "place_stone", "stone_too
         )
         action = pi.logits
         maximum_action = jnp.argmax(action, axis=1)
-        frac_place_table = jnp.sum(maximum_action in intervention_nos) / maximum_action.size
+        frac_place_table = jnp.sum( jnp.isin( maximum_action, jnp.array(intervention_nos) ) ) / maximum_action.size
         fracs.append(frac_place_table)
+        pbar.update(1)
 
     plt.plot(fracs)
     plt.xlabel("Checkpoint")
     plt.ylabel("Fraction of Place Table Actions")
     plt.title(f"{intervention} - control Act Add on ckpt {checkpoint_no}")
     plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/frac_{intervention}_{checkpoint_no}.png")
+    plt.close()
+
