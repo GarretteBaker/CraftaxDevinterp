@@ -2113,7 +2113,7 @@ def get_action_activations(
             block_pixel_size = 16
         )
         return (rng, i+1), (obs, obs_pix)
-    _, (states, pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
+    _, (states, pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=1000)
 
     vectorized_acts = jax.jit(jax.vmap(get_activations, in_axes=(0, None), out_axes=0))
 
@@ -2183,7 +2183,7 @@ def get_vec_addition_result(
             block_pixel_size = 16
         )
         return (rng, i+1), (obs, obs_pix)
-    _, (states, pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
+    _, (states, pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=1000)
 
     network = ActorCritic_with_hook(17, 512)
     vectorized_vec_addition = jax.jit(network.add_act_to_layer, static_argnames=("layer"))
@@ -2221,65 +2221,66 @@ from tqdm import tqdm
 jitted_action_activations = jax.jit(get_action_activations, static_argnames=("action", "env", "seed", "debug"))
 jitted_vec_addition_result = jax.jit(get_vec_addition_result, static_argnames=("situation", "env", "layer", "seed", "debug"))
 
-pbar = tqdm(total=6*1525)
-for intervention in ("table", "planting", "wood_tool", "place_stone", "stone_tool", "iron_tool"):
-    intervention_no_table = {
-        "table": (8), 
-        "planting": (10), 
-        "wood_tool": (11, 14), 
-        "place_stone": (7),
-        "stone_tool": (12, 15),
-        "iron_tool": (13, 16)
-    }
-    intervention_nos = intervention_no_table[intervention]
+pbar = tqdm(total=3*6*1525)
+for layer_number in range(3):
+    for intervention in ("table", "planting", "wood_tool", "place_stone", "stone_tool", "iron_tool"):
+        intervention_no_table = {
+            "table": (8), 
+            "planting": (10), 
+            "wood_tool": (11, 14), 
+            "place_stone": (7),
+            "stone_tool": (12, 15),
+            "iron_tool": (13, 16)
+        }
+        intervention_nos = intervention_no_table[intervention]
 
-    fracs = list()
-    frac_interventions = list()
-    for checkpoint_no in range(1525):
-        checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{checkpoint_no}"
-        folder_list = os.listdir(checkpoint_directory)
-        params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-        network = ActorCritic_with_hook(17, 512)
-        
-        layer_number = 0
-        control_acts = jitted_action_activations(
-            "control",
-            env, 
-            params, 
-            seed = 1
-        )
-        intervention_acts = jitted_action_activations(
-            intervention, 
-            env, 
-            params, 
-            seed = 1
-        )
-        layer_addition = intervention_acts[layer_number] - control_acts[layer_number]
-        pi = jitted_vec_addition_result(
-            "control", 
-            env, 
-            params, 
-            layer_addition,
-            layer_number, 
-            seed=0, 
-            debug=False
-        )
-        intervention_action = intervention_acts[-1]
-        maximum_int_act = jnp.argmax(intervention_action, axis=1)
-        frac_intervention_action = jnp.sum( jnp.isin( maximum_int_act, jnp.array(intervention_nos) ) ) / maximum_int_act.size
-        frac_interventions.append(frac_intervention_action)
+        fracs = list()
+        frac_interventions = list()
+        for checkpoint_no in range(1525):
+            checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{checkpoint_no}"
+            folder_list = os.listdir(checkpoint_directory)
+            params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+            network = ActorCritic_with_hook(17, 512)
+            
+            control_acts = jitted_action_activations(
+                "control",
+                env, 
+                params, 
+                seed = 1
+            )
+            intervention_acts = jitted_action_activations(
+                intervention, 
+                env, 
+                params, 
+                seed = 1
+            )
+            layer_addition = intervention_acts[layer_number] - control_acts[layer_number]
+            pi = jitted_vec_addition_result(
+                "control", 
+                env, 
+                params, 
+                layer_addition,
+                layer_number, 
+                seed=0, 
+                debug=False
+            )
+            intervention_action = intervention_acts[-1]
+            maximum_int_act = jnp.argmax(intervention_action, axis=1)
+            frac_intervention_action = jnp.sum( jnp.isin( maximum_int_act, jnp.array(intervention_nos) ) ) / maximum_int_act.size
+            frac_interventions.append(frac_intervention_action)
 
-        action = pi.logits
-        maximum_action = jnp.argmax(action, axis=1)
-        frac_place_table = jnp.sum( jnp.isin( maximum_action, jnp.array(intervention_nos) ) ) / maximum_action.size
-        fracs.append(frac_place_table)
-        pbar.update(1)
+            action = pi.logits
+            maximum_action = jnp.argmax(action, axis=1)
+            frac_place_table = jnp.sum( jnp.isin( maximum_action, jnp.array(intervention_nos) ) ) / maximum_action.size
+            fracs.append(frac_place_table)
+            pbar.update(1)
 
-    plt.plot(fracs, label="act addition")
-    plt.plot(frac_interventions, label="intervention")
-    plt.xlabel("Checkpoint")
-    plt.ylabel(f"Fraction of {intervention} Actions")
-    plt.title(f"{intervention} - control Act Add on ckpt {checkpoint_no}")
-    plt.legend()
-    plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/frac_{intervention}_{checkpoint_no}.png")
-    plt.close()
+        plt.plot(fracs, label="act addition")
+        plt.plot(frac_interventions, label="intervention")
+        plt.xlabel("Checkpoint")
+        plt.ylabel(f"Fraction of {intervention} Actions")
+        plt.title(f"{intervention} - control Act Add on ckpt {checkpoint_no}")
+        plt.legend()
+        os.makedirs(f"/workspace/CraftaxDevinterp/intermediate_data/{intervention}/{layer_number}", exist_ok=True)
+        plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/{intervention}/{layer_number}/action_over_time.png")
+        plt.close()
