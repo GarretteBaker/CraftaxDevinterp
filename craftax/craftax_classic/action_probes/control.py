@@ -1949,71 +1949,68 @@ import matplotlib.pyplot as plt
 import orbax.checkpoint as ocp
 import os
 #%%
-rng = jax.random.PRNGKey(0)
-state = generate_test_world(
-    rng, 
-    9, 
-    0,
-)
-rgb = render_craftax_pixels(
-    state,
-    block_pixel_size = 16
-)
-plt.imshow(rgb/255)
-plt.show()
-#%%
 env = CraftaxClassicSymbolicEnv()
 rng = jax.random.PRNGKey(0)
-#%%
-def generate_states(carry, unused):
-    rng, i = carry
-    rng, env_rng = jax.random.split(rng)
-    obs, state = env.reset(env_rng)
-    # state = give_wood_for_table(state) # verified working
-    # state = give_sapling_for_planting(state) # verified basically working
-    # state = wood_tool_circumstance(state) # Not quite working, but def does increase p(behavior)
-    # state = give_stone_for_furnace_and_placing_stone(state) # also working, but it only really places stone
-    # state = stone_tool_circumstance(state) # increases p(behavior), but not quite working
-    # state = iron_tool_circumstance(state) # actually working relatively well
-    obs = render_craftax_symbolic(state)
-    obs_pix = render_craftax_pixels(
-        state, 
-        block_pixel_size = 16
-    )
-    return (rng, i+1), (obs, obs_pix)
-_, (states, pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
 
-vectorized_acts = jax.jit(jax.vmap(get_activations, in_axes=(0, None), out_axes=0))
+def get_action_activations(action: str, env: CraftaxClassicSymbolicEnv, rng):
+    def generate_states(carry, unused):
+        rng, i = carry
+        rng, env_rng = jax.random.split(rng)
+        obs, state = env.reset(env_rng)
+        if action == "table":
+            state = give_wood_for_table(state) # verified working
+        elif action == "planting":
+            state = give_sapling_for_planting(state) # verified basically working
+        elif action == "wood_tool":
+            state = wood_tool_circumstance(state) # not quite working, but increases p(behavior)
+        elif action == "place_stone":
+            state = give_stone_for_furnace_and_placing_stone(state) # also working, but it only really places stone
+        elif action == "stone_tool":
+            state = stone_tool_circumstance(state) # increases p(behavior), but not quite working
+        elif action == "iron_tool":
+            state = iron_tool_circumstance(state) # actually working relatively well
+        else:
+            raise ValueError("Invalid action")
+        obs = render_craftax_symbolic(state)
+        obs_pix = render_craftax_pixels(
+            state, 
+            block_pixel_size = 16
+        )
+        return (rng, i+1), (obs, obs_pix)
+    _, (states, pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
 
-checkpointer = ocp.StandardCheckpointer()
-checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
-folder_list = os.listdir(checkpoint_directory)
-params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-activations = vectorized_acts(states, params)
-#%%
-ACTION_MAP = {
-    0: "NOOP",
-    1: "LEFT",
-    2: "RIGHT",
-    3: "UP",
-    4: "DOWN",
-    5: "DO",
-    6: "SLEEP",
-    7: "PLACE_STONE",
-    8: "PLACE_TABLE",
-    9: "PLACE_FURNACE",
-    10: "PLACE_PLANT",
-    11: "MAKE_WOOD_PICKAXE",
-    12: "MAKE_STONE_PICKAXE",
-    13: "MAKE_IRON_PICKAXE",
-    14: "MAKE_WOOD_SWORD",
-    15: "MAKE_STONE_SWORD",
-    16: "MAKE_IRON_SWORD"
-}
+    vectorized_acts = jax.jit(jax.vmap(get_activations, in_axes=(0, None), out_axes=0))
 
-action = activations[-1]
-maximum_action = jnp.argmax(action, axis=1)
+    checkpointer = ocp.StandardCheckpointer()
+    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
+    folder_list = os.listdir(checkpoint_directory)
+    params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+    activations = vectorized_acts(states, params)
+    # #%%
+    # ACTION_MAP = {
+    #     0: "NOOP",
+    #     1: "LEFT",
+    #     2: "RIGHT",
+    #     3: "UP",
+    #     4: "DOWN",
+    #     5: "DO",
+    #     6: "SLEEP",
+    #     7: "PLACE_STONE",
+    #     8: "PLACE_TABLE",
+    #     9: "PLACE_FURNACE",
+    #     10: "PLACE_PLANT",
+    #     11: "MAKE_WOOD_PICKAXE",
+    #     12: "MAKE_STONE_PICKAXE",
+    #     13: "MAKE_IRON_PICKAXE",
+    #     14: "MAKE_WOOD_SWORD",
+    #     15: "MAKE_STONE_SWORD",
+    #     16: "MAKE_IRON_SWORD"
+    # }
 
-for action in maximum_action:
-    human_readable = ACTION_MAP[action.item()]
-    print(human_readable)
+    # action = activations[-1]
+    # maximum_action = jnp.argmax(action, axis=1)
+
+    # for action in maximum_action:
+    #     human_readable = ACTION_MAP[action.item()]
+    #     print(human_readable)
+    return activations
