@@ -2416,4 +2416,5 @@ for layer_number in range(3):
 # TODO: or perhaps in a full game played by the model. Can we see when its using which shards?
 # TODO: I expect this to be unintresting, but worth looking at: What happens in sleep?
 # TODO: Do the intervention vectors work better if we instead just *condition* on the model having done the action? Rather
-    # than doing as we do here and making a custom minimum change intervention? But then which model?
+    # than doing as we do here and making a custom minimum change intervention? But then which model? +1 I think conditioning
+    # may smooth out the results.
