@@ -1233,8 +1233,8 @@ def give_one_wood(state):
 def give_stone_for_furnace_and_placing_stone(state):
     inventory = Inventory(
         wood = state.inventory.wood,
-        # stone = 5, 
-        stone = 1,
+        stone = 5, 
+        # stone = 1,
         coal = state.inventory.coal,
         iron = state.inventory.iron,
         diamond = state.inventory.diamond,
@@ -2234,13 +2234,14 @@ for intervention in ("table", "planting", "wood_tool", "place_stone", "stone_too
     intervention_nos = intervention_no_table[intervention]
 
     fracs = list()
+    frac_interventions = list()
     for checkpoint_no in range(1525):
         checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{checkpoint_no}"
         folder_list = os.listdir(checkpoint_directory)
         params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
         network = ActorCritic_with_hook(17, 512)
         
-        layer_number = 1
+        layer_number = 0
         control_acts = jitted_action_activations(
             "control",
             env, 
@@ -2263,16 +2264,22 @@ for intervention in ("table", "planting", "wood_tool", "place_stone", "stone_too
             seed=0, 
             debug=False
         )
+        intervention_action = intervention_acts[-1]
+        maximum_int_act = jnp.argmax(intervention_action, axis=1)
+        frac_intervention_action = jnp.sum( jnp.isin( maximum_int_act, jnp.array(intervention_nos) ) ) / maximum_int_act.size
+        frac_interventions.append(frac_intervention_action)
+
         action = pi.logits
         maximum_action = jnp.argmax(action, axis=1)
         frac_place_table = jnp.sum( jnp.isin( maximum_action, jnp.array(intervention_nos) ) ) / maximum_action.size
         fracs.append(frac_place_table)
         pbar.update(1)
 
-    plt.plot(fracs)
+    plt.plot(fracs, label="act addition")
+    plt.plot(frac_interventions, label="intervention")
     plt.xlabel("Checkpoint")
-    plt.ylabel("Fraction of Place Table Actions")
+    plt.ylabel(f"Fraction of {intervention} Actions")
     plt.title(f"{intervention} - control Act Add on ckpt {checkpoint_no}")
+    plt.legend()
     plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/frac_{intervention}_{checkpoint_no}.png")
     plt.close()
-
