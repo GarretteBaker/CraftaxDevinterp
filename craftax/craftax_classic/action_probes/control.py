@@ -935,6 +935,874 @@ def add_zombie(state):
     )
 
 @jax.jit
+def give_wood_for_table(state):
+    inventory = Inventory(
+        wood = 8, 
+        # wood = 4,
+        stone = state.inventory.stone,
+        coal = state.inventory.coal,
+        iron = state.inventory.iron,
+        diamond = state.inventory.diamond,
+        sapling = state.inventory.sapling,
+        wood_pickaxe = state.inventory.wood_pickaxe,
+        stone_pickaxe = state.inventory.stone_pickaxe,
+        iron_pickaxe = state.inventory.iron_pickaxe,
+        wood_sword = state.inventory.wood_sword,
+        stone_sword = state.inventory.stone_sword,
+        iron_sword = state.inventory.iron_sword
+    )
+
+    return EnvState(
+        # world
+        map=state.map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+@jax.jit
+def give_sapling_for_planting(state):
+    inventory = Inventory(
+        wood = state.inventory.wood,
+        stone = state.inventory.stone,
+        coal = state.inventory.coal,
+        iron = state.inventory.iron,
+        diamond = state.inventory.diamond,
+        sapling = 1,
+        wood_pickaxe = state.inventory.wood_pickaxe,
+        stone_pickaxe = state.inventory.stone_pickaxe,
+        iron_pickaxe = state.inventory.iron_pickaxe,
+        wood_sword = state.inventory.wood_sword,
+        stone_sword = state.inventory.stone_sword,
+        iron_sword = state.inventory.iron_sword
+    )
+
+    return EnvState(
+        # world
+        map=state.map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+def add_table(state):
+    player_direction = state.player_direction
+    player_position = state.player_position
+    block_position = player_position + DIRECTIONS[player_direction]
+    map = state.map.at[block_position[0], block_position[1]].set(constants.BlockType.CRAFTING_TABLE.value)
+    return EnvState(
+        # world
+        map=map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health,
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=state.inventory,
+
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+
+        # arrows
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+@jax.jit
+def wood_tool_circumstance(state):
+    # we first add a crafting table in front of agent, then we 
+    # give it a bunch of wood in its inventory
+
+    state = add_table(state)
+    state = give_wood_for_table(state)
+    return state
+
+@jax.jit
+def give_one_stone(state):
+    inventory = Inventory(
+        wood = state.inventory.wood,
+        stone = 5,
+        coal = state.inventory.coal,
+        iron = state.inventory.iron,
+        diamond = state.inventory.diamond,
+        sapling = state.inventory.sapling,
+        wood_pickaxe = state.inventory.wood_pickaxe,
+        stone_pickaxe = state.inventory.stone_pickaxe,
+        iron_pickaxe = state.inventory.iron_pickaxe,
+        wood_sword = state.inventory.wood_sword,
+        stone_sword = state.inventory.stone_sword,
+        iron_sword = state.inventory.iron_sword
+    )
+
+    return EnvState(
+        # world
+        map=state.map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+@jax.jit
+def give_one_wood(state):
+    inventory = Inventory(
+        wood = 5,
+        stone = state.inventory.stone,
+        coal = state.inventory.coal,
+        iron = state.inventory.iron,
+        diamond = state.inventory.diamond,
+        sapling = state.inventory.sapling,
+        wood_pickaxe = state.inventory.wood_pickaxe,
+        stone_pickaxe = state.inventory.stone_pickaxe,
+        iron_pickaxe = state.inventory.iron_pickaxe,
+        wood_sword = state.inventory.wood_sword,
+        stone_sword = state.inventory.stone_sword,
+        iron_sword = state.inventory.iron_sword
+    )
+
+    return EnvState(
+        # world
+        map=state.map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+@jax.jit
+def give_stone_for_furnace_and_placing_stone(state):
+    inventory = Inventory(
+        wood = state.inventory.wood,
+        # stone = 5, 
+        stone = 1,
+        coal = state.inventory.coal,
+        iron = state.inventory.iron,
+        diamond = state.inventory.diamond,
+        sapling = state.inventory.sapling,
+        wood_pickaxe = state.inventory.wood_pickaxe,
+        stone_pickaxe = state.inventory.stone_pickaxe,
+        iron_pickaxe = state.inventory.iron_pickaxe,
+        wood_sword = state.inventory.wood_sword,
+        stone_sword = state.inventory.stone_sword
+    )     
+
+    return EnvState(
+        # world
+        map=state.map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+@jax.jit
+def give_wood_pickaxe(state):
+    inventory = Inventory(
+        wood = state.inventory.wood,
+        stone = state.inventory.stone,
+        coal = state.inventory.coal,
+        iron = state.inventory.iron,
+        diamond = state.inventory.diamond,
+        sapling = state.inventory.sapling,
+        wood_pickaxe = 1,
+        stone_pickaxe = state.inventory.stone_pickaxe,
+        iron_pickaxe = state.inventory.iron_pickaxe,
+        wood_sword = state.inventory.wood_sword,
+        stone_sword = state.inventory.stone_sword,
+        iron_sword = state.inventory.iron_sword
+    )
+
+    return EnvState(
+        # world
+        map=state.map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+@jax.jit
+def give_wood_sword(state):
+    inventory = Inventory(
+        wood = state.inventory.wood,
+        stone = state.inventory.stone,
+        coal = state.inventory.coal,
+        iron = state.inventory.iron,
+        diamond = state.inventory.diamond,
+        sapling = state.inventory.sapling,
+        wood_pickaxe = state.inventory.wood_pickaxe,
+        stone_pickaxe = state.inventory.stone_pickaxe,
+        iron_pickaxe = state.inventory.iron_pickaxe,
+        wood_sword = 1,
+        stone_sword = state.inventory.stone_sword,
+        iron_sword = state.inventory.iron_sword
+    )
+
+    return EnvState(
+        # world
+        map=state.map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+def place_stone_beside(state):
+    player_direction = state.player_direction
+    player_position = state.player_position
+    # rotate direction by 90 degrees
+    direction = jax.lax.select(
+        player_direction == 1,
+        3, 
+        jax.lax.select(
+            player_direction == 2,
+            4,
+            jax.lax.select(
+                player_direction == 3,
+                2,
+                1
+            )
+        )
+    )
+
+    block_position = player_position + DIRECTIONS[direction]
+    map = state.map.at[block_position[0], block_position[1]].set(constants.BlockType.STONE.value)
+    return EnvState(
+        # world
+        map=map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health,
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=state.inventory,
+
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+
+        # arrows
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+def place_stone_to_other_side(state):
+    player_direction = state.player_direction
+    player_position = state.player_position
+    # rotate direction by 90 degrees
+    direction = jax.lax.select(
+        player_direction == 1,
+        2, 
+        jax.lax.select(
+            player_direction == 2,
+            1,
+            jax.lax.select(
+                player_direction == 3,
+                4,
+                3
+            )
+        )
+    )
+
+    block_position = player_position + DIRECTIONS[direction]
+    map = state.map.at[block_position[0], block_position[1]].set(constants.BlockType.STONE.value)
+    return EnvState(
+        # world
+        map=map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health,
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=state.inventory,
+
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+
+        # arrows
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+@jax.jit
+def stone_tool_circumstance(state):
+    # first we give it stone, then we add the crafting table in front of it, then we give it a wood pickaxe and sword
+    state = give_one_stone(state)
+    state = give_one_wood(state)
+    state = add_table(state)
+    state = give_wood_pickaxe(state)
+    state = give_wood_sword(state)
+    state = place_stone_beside(state)
+    state = place_stone_to_other_side(state)
+    return state
+
+@jax.jit
+def give_iron(state):
+    inventory = Inventory(
+        wood = state.inventory.wood,
+        stone = state.inventory.stone,
+        coal = state.inventory.coal,
+        iron = 5,
+        diamond = state.inventory.diamond,
+        sapling = state.inventory.sapling,
+        wood_pickaxe = state.inventory.wood_pickaxe,
+        stone_pickaxe = state.inventory.stone_pickaxe,
+        iron_pickaxe = state.inventory.iron_pickaxe,
+        wood_sword = state.inventory.wood_sword,
+        stone_sword = state.inventory.stone_sword,
+        iron_sword = state.inventory.iron_sword
+    )
+
+    return EnvState(
+        # world
+        map=state.map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+def next_to_furnace(state):
+    player_direction = state.player_direction
+    # rotate direction by 90 degrees
+    direction = jax.lax.select(
+        player_direction == 1,
+        2,
+        jax.lax.select(
+            player_direction == 2,
+            1,
+            jax.lax.select(
+                player_direction == 3,
+                4,
+                3
+            )
+        )
+    )
+    player_position = state.player_position
+    block_position = player_position + DIRECTIONS[direction]
+    map = state.map.at[block_position[0], block_position[1]].set(constants.BlockType.FURNACE.value)
+    return EnvState(
+        # world
+        map=map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health,
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=state.inventory,
+
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+
+        # arrows
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+@jax.jit
+def give_stone_pickaxe(state):
+    inventory = Inventory(
+        wood = state.inventory.wood,
+        stone = state.inventory.stone,
+        coal = state.inventory.coal,
+        iron = state.inventory.iron,
+        diamond = state.inventory.diamond,
+        sapling = state.inventory.sapling,
+        wood_pickaxe = state.inventory.wood_pickaxe,
+        stone_pickaxe = 1,
+        iron_pickaxe = state.inventory.iron_pickaxe,
+        wood_sword = state.inventory.wood_sword,
+        stone_sword = state.inventory.stone_sword,
+        iron_sword = state.inventory.iron_sword
+    )
+
+    return EnvState(
+        # world
+        map=state.map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+@jax.jit
+def give_stone_sword(state):
+    inventory = Inventory(
+        wood = state.inventory.wood,
+        stone = state.inventory.stone,
+        coal = state.inventory.coal,
+        iron = state.inventory.iron,
+        diamond = state.inventory.diamond,
+        sapling = state.inventory.sapling,
+        wood_pickaxe = state.inventory.wood_pickaxe,
+        stone_pickaxe = state.inventory.stone_pickaxe,
+        iron_pickaxe = state.inventory.iron_pickaxe,
+        wood_sword = state.inventory.wood_sword,
+        stone_sword = 1,
+        iron_sword = state.inventory.iron_sword
+    )
+
+    return EnvState(
+        # world
+        map=state.map,
+
+        # player
+        player_position=state.player_position,
+        player_direction=state.player_direction,
+        player_health=state.player_health, 
+        player_food=state.player_food,
+        player_drink=state.player_drink,
+        player_energy=state.player_energy,
+        player_recover=state.player_recover,
+        player_hunger=state.player_hunger,
+        player_thirst=state.player_thirst,
+        player_fatigue=state.player_fatigue,
+        is_sleeping=state.is_sleeping,
+
+        # inventory
+        inventory=inventory,
+    
+        # mobs
+        mob_map = state.mob_map,
+        zombies=state.zombies,
+        cows=state.cows,
+        skeletons=state.skeletons,
+        arrows=state.arrows,
+        arrow_directions=state.arrow_directions,
+        
+        # farming
+        growing_plants_positions=state.growing_plants_positions,
+        growing_plants_age=state.growing_plants_age,
+        growing_plants_mask=state.growing_plants_mask,
+
+        # progress
+        achievements=state.achievements,
+        light_level=state.light_level,
+
+        # misc
+        state_rng=state.state_rng,
+        timestep=state.timestep
+    )
+
+@jax.jit
+def iron_tool_circumstance(state):
+    # first we give it iron, then we add the crafting table in front of it, then we give
+    # it a wood pickaxe and sword, then we give it a stone pickaxe and sword, and finally
+    # we give it a furnace *next to* it
+    state = give_one_stone(state)
+    state = give_one_wood(state)
+    state = give_iron(state)
+    state = add_table(state)
+    state = give_wood_pickaxe(state)
+    state = give_wood_sword(state)
+    state = give_stone_pickaxe(state)
+    state = give_stone_sword(state)
+    state = next_to_furnace(state)
+    return state
+
+@jax.jit
 def randomize_inventory(state, rng):
     inventory_rngs = jax.random.split(rng, 13)
     rng = inventory_rngs[-1]
@@ -1101,40 +1969,19 @@ def generate_states(carry, unused):
     rng, i = carry
     rng, env_rng = jax.random.split(rng)
     obs, state = env.reset(env_rng)
-    # state = give_plant(state)
-    # state = add_wood(state)
-    state = add_zombie(state)
-    # local_position = state.zombies.position[0] - state.player_position + jnp.array([constants.OBS_DIM[0], constants.OBS_DIM[1]]) // 2
-    # on_screen = jnp.logical_and(
-    #     local_position >= 0, local_position < jnp.array([constants.OBS_DIM[0], constants.OBS_DIM[1]])
-    # ).all()
-    # on_screen *= state.zombies.mask[0]
-    # print(on_screen)
-
-    obs = render_craftax_symbolic(state)
-    obs_pix = render_craftax_pixels(
-        state, 
-        block_pixel_size = 16
-    )
-                                    
-    return (rng, i+1), (obs, obs_pix)
-generate_states((rng, 0), None)
-_, (zombie_states, zombie_pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
-#%%
-def generate_states(carry, unused):
-    rng, i = carry
-    rng, env_rng = jax.random.split(rng)
-    obs, state = env.reset(env_rng)
-    # state = give_plant(state)
-    # state = add_wood(state)
-    # state = add_zombie(state)
+    # state = give_wood_for_table(state) # verified working
+    # state = give_sapling_for_planting(state) # verified basically working
+    # state = wood_tool_circumstance(state) # Not quite working, but def does increase p(behavior)
+    # state = give_stone_for_furnace_and_placing_stone(state) # also working, but it only really places stone
+    # state = stone_tool_circumstance(state) # increases p(behavior), but not quite working
+    # state = iron_tool_circumstance(state) # actually working relatively well
     obs = render_craftax_symbolic(state)
     obs_pix = render_craftax_pixels(
         state, 
         block_pixel_size = 16
     )
     return (rng, i+1), (obs, obs_pix)
-_, (control_states, control_pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
+_, (states, pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
 
 vectorized_acts = jax.jit(jax.vmap(get_activations, in_axes=(0, None), out_axes=0))
 
@@ -1142,41 +1989,31 @@ checkpointer = ocp.StandardCheckpointer()
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-zombie_activations = vectorized_acts(zombie_states, params)
-control_activations = vectorized_acts(control_states, params)
-save_dir = "/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/zombie-control"
-os.makedirs(save_dir, exist_ok=True)
-for i, zombie_activation in enumerate(zombie_activations):
-    control_activation = control_activations[i]
-    u, s, v = jnp.linalg.svd(zombie_activation - control_activation, full_matrices=False)
-    plt.plot(s)
-    plt.title(f"Singular Values of Activations for layer {i}")
-    plt.savefig(f"{save_dir}/singular_values_{i}.png")
-    plt.close()
+activations = vectorized_acts(states, params)
+#%%
+ACTION_MAP = {
+    0: "NOOP",
+    1: "LEFT",
+    2: "RIGHT",
+    3: "UP",
+    4: "DOWN",
+    5: "DO",
+    6: "SLEEP",
+    7: "PLACE_STONE",
+    8: "PLACE_TABLE",
+    9: "PLACE_FURNACE",
+    10: "PLACE_PLANT",
+    11: "MAKE_WOOD_PICKAXE",
+    12: "MAKE_STONE_PICKAXE",
+    13: "MAKE_IRON_PICKAXE",
+    14: "MAKE_WOOD_SWORD",
+    15: "MAKE_STONE_SWORD",
+    16: "MAKE_IRON_SWORD"
+}
 
+action = activations[-1]
+maximum_action = jnp.argmax(action, axis=1)
 
-for i, zombie_activation in enumerate(zombie_activations):
-    control_activation = control_activations[i]
-    plt.imshow(zombie_activation - control_activation, cmap="viridis")
-    plt.title(f"Activations for layer {i}")
-    plt.colorbar()
-    plt.savefig(f"{save_dir}/activations_{i}.png")
-    plt.close()
-
-for i in range(5):
-    state_no = i * 100
-    zombie_pixel = zombie_pixels[state_no, ...]/255
-    control_pixel = control_pixels[state_no, ...]/255
-
-    plt.imshow(zombie_pixel)
-    plt.title(f"Zombie State {state_no}")
-    plt.savefig(f"{save_dir}/zombie_state_{state_no}.png")
-    plt.close()
-    plt.imshow(control_pixel)
-    plt.title(f"Control State {state_no}")
-    plt.savefig(f"{save_dir}/control_state_{state_no}.png")
-    plt.close()
-# %%
-# conclusion: it is indifferent between whether there's a wood or stone in front of it.
-# It immediately recognizes that both imply it should execute the DO action, and so it has
-# the same representation for both situations.
+for action in maximum_action:
+    human_readable = ACTION_MAP[action.item()]
+    print(human_readable)
