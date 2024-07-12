@@ -1873,69 +1873,196 @@ class ActorCritic_with_hook(nn.Module):
     layer_width: int
     activation: str = "relu"
 
-    @nn.compact
+    def setup(self):
+        # Actor layers
+        self.Dense_0 = nn.Dense(
+            self.layer_width,
+            kernel_init=orthogonal(np.sqrt(2)),
+            bias_init=constant(0.0),
+            name='Dense_0'
+        )
+        self.Dense_1 = nn.Dense(
+            self.layer_width,
+            kernel_init=orthogonal(np.sqrt(2)),
+            bias_init=constant(0.0),
+            name='Dense_1'
+        )
+        self.Dense_2 = nn.Dense(
+            self.layer_width,
+            kernel_init=orthogonal(np.sqrt(2)),
+            bias_init=constant(0.0),
+            name='Dense_2'
+        )
+        self.Dense_3 = nn.Dense(
+            self.action_dim, 
+            kernel_init=orthogonal(0.01), 
+            bias_init=constant(0.0),
+            name='Dense_3'
+        )
+
+        # Critic layers
+        self.Dense_4 = nn.Dense(
+            self.layer_width,
+            kernel_init=orthogonal(np.sqrt(2)),
+            bias_init=constant(0.0),
+            name='Dense_4'
+        )
+        self.Dense_5 = nn.Dense(
+            self.layer_width,
+            kernel_init=orthogonal(np.sqrt(2)),
+            bias_init=constant(0.0),
+            name='Dense_5'
+        )
+        self.Dense_6 = nn.Dense(
+            self.layer_width,
+            kernel_init=orthogonal(np.sqrt(2)),
+            bias_init=constant(0.0),
+            name='Dense_6'
+        )
+        self.Dense_7 = nn.Dense(
+            1, 
+            kernel_init=orthogonal(1.0), 
+            bias_init=constant(0.0),
+            name='Dense_7'
+        )
+
     def __call__(self, x):
-        if self.activation == "relu":
-            activation = nn.relu
-        else:
-            activation = nn.tanh
+        activation = nn.relu if self.activation == "relu" else nn.tanh
+
         activations = list()
-        actor_mean = nn.Dense(
-            self.layer_width,
-            kernel_init=orthogonal(np.sqrt(2)),
-            bias_init=constant(0.0),
-        )(x)
+        actor_mean = self.Dense_0(x)
         actor_mean = activation(actor_mean)
         activations.append(actor_mean)
 
-        actor_mean = nn.Dense(
-            self.layer_width,
-            kernel_init=orthogonal(np.sqrt(2)),
-            bias_init=constant(0.0),
-        )(actor_mean)
+        actor_mean = self.Dense_1(actor_mean)
         actor_mean = activation(actor_mean)
         activations.append(actor_mean)
 
-        actor_mean = nn.Dense(
-            self.layer_width,
-            kernel_init=orthogonal(np.sqrt(2)),
-            bias_init=constant(0.0),
-        )(actor_mean)
+        actor_mean = self.Dense_2(actor_mean)
         actor_mean = activation(actor_mean)
         activations.append(actor_mean)
 
-        actor_mean = nn.Dense(
-            self.action_dim, kernel_init=orthogonal(0.01), bias_init=constant(0.0)
-        )(actor_mean)
+        actor_mean = self.Dense_3(actor_mean)
         activations.append(actor_mean)
         pi = distrax.Categorical(logits=actor_mean)
 
-        critic = nn.Dense(
-            self.layer_width,
-            kernel_init=orthogonal(np.sqrt(2)),
-            bias_init=constant(0.0),
-        )(x)
-        critic = activation(critic)
+        # critic = self.Dense_4(x)
+        # critic = activation(critic)
 
-        critic = nn.Dense(
-            self.layer_width,
-            kernel_init=orthogonal(np.sqrt(2)),
-            bias_init=constant(0.0),
-        )(critic)
-        critic = activation(critic)
+        # critic = self.Dense_5(critic)
+        # critic = activation(critic)
 
-        critic = nn.Dense(
-            self.layer_width,
-            kernel_init=orthogonal(np.sqrt(2)),
-            bias_init=constant(0.0),
-        )(critic)
-        critic = activation(critic)
+        # critic = self.Dense_6(critic)
+        # critic = activation(critic)
 
-        critic = nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0))(
-            critic
+        # critic = self.Dense_7(critic)
+
+        return pi, 0, activations
+    def apply_dense(self, params, x):
+        return jnp.dot(x, params['kernel']) + params['bias']
+    
+    def add_act_to_layer(
+            self,
+            params, 
+            x, 
+            activation_addition,
+            layer: int, 
+            activation_type: str = "relu"
+        ):        
+        activation = nn.relu if activation_type == "relu" else nn.tanh
+
+        actor_mean = self.apply_dense(params['params']['Dense_0'], x)
+        actor_mean = activation(actor_mean)
+        actor_mean = jax.lax.select(
+            layer == 0,
+            actor_mean + activation_addition,
+            actor_mean
         )
+        
+        actor_mean = self.apply_dense(params['params']['Dense_1'], actor_mean)
+        actor_mean = activation(actor_mean)
+        actor_mean = jax.lax.select(
+            layer == 1,
+            actor_mean + activation_addition,
+            actor_mean
+        )
+        
+        actor_mean = self.apply_dense(params['params']['Dense_2'], actor_mean)
+        actor_mean = activation(actor_mean)
+        actor_mean = jax.lax.select(
+            layer == 2,
+            actor_mean + activation_addition,
+            actor_mean
+        )
+        
+        actor_mean = self.apply_dense(params['params']['Dense_3'], actor_mean)
+        pi = distrax.Categorical(logits=actor_mean)
+        return pi
 
-        return pi, jnp.squeeze(critic, axis=-1), activations
+
+    # @nn.compact
+    # def __call__(self, x):
+    #     if self.activation == "relu":
+    #         activation = nn.relu
+    #     else:
+    #         activation = nn.tanh
+    #     activations = list()
+    #     actor_mean = nn.Dense(
+    #         self.layer_width,
+    #         kernel_init=orthogonal(np.sqrt(2)),
+    #         bias_init=constant(0.0),
+    #     )(x)
+    #     actor_mean = activation(actor_mean)
+    #     activations.append(actor_mean)
+
+    #     actor_mean = nn.Dense(
+    #         self.layer_width,
+    #         kernel_init=orthogonal(np.sqrt(2)),
+    #         bias_init=constant(0.0),
+    #     )(actor_mean)
+    #     actor_mean = activation(actor_mean)
+    #     activations.append(actor_mean)
+
+    #     actor_mean = nn.Dense(
+    #         self.layer_width,
+    #         kernel_init=orthogonal(np.sqrt(2)),
+    #         bias_init=constant(0.0),
+    #     )(actor_mean)
+    #     actor_mean = activation(actor_mean)
+    #     activations.append(actor_mean)
+
+    #     actor_mean = nn.Dense(
+    #         self.action_dim, kernel_init=orthogonal(0.01), bias_init=constant(0.0)
+    #     )(actor_mean)
+    #     activations.append(actor_mean)
+    #     pi = distrax.Categorical(logits=actor_mean)
+
+    #     critic = nn.Dense(
+    #         self.layer_width,
+    #         kernel_init=orthogonal(np.sqrt(2)),
+    #         bias_init=constant(0.0),
+    #     )(x)
+    #     critic = activation(critic)
+
+    #     critic = nn.Dense(
+    #         self.layer_width,
+    #         kernel_init=orthogonal(np.sqrt(2)),
+    #         bias_init=constant(0.0),
+    #     )(critic)
+    #     critic = activation(critic)
+
+    #     critic = nn.Dense(
+    #         self.layer_width,
+    #         kernel_init=orthogonal(np.sqrt(2)),
+    #         bias_init=constant(0.0),
+    #     )(critic)
+    #     critic = activation(critic)
+
+    #     critic = nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0))(
+    #         critic
+    #     )
+
+    #     return pi, jnp.squeeze(critic, axis=-1), activations
 
 
 def get_activations(obs, params):
@@ -1943,21 +2070,30 @@ def get_activations(obs, params):
     _, _, activations = network.apply(params, obs)
     return activations
 
-#%%
 from craftax.craftax_classic.envs.craftax_symbolic_env import CraftaxClassicSymbolicEnv
 import matplotlib.pyplot as plt
 import orbax.checkpoint as ocp
 import os
-#%%
 env = CraftaxClassicSymbolicEnv()
 rng = jax.random.PRNGKey(0)
 
-def get_action_activations(action: str, env: CraftaxClassicSymbolicEnv, rng):
+checkpointer = ocp.StandardCheckpointer()
+
+def get_action_activations(
+        action: str, 
+        env: CraftaxClassicSymbolicEnv, 
+        params, 
+        seed: int = 0, 
+        debug=False
+    ):
+    rng = jax.random.PRNGKey(seed)
     def generate_states(carry, unused):
         rng, i = carry
         rng, env_rng = jax.random.split(rng)
         obs, state = env.reset(env_rng)
-        if action == "table":
+        if action == "control":
+            pass
+        elif action == "table":
             state = give_wood_for_table(state) # verified working
         elif action == "planting":
             state = give_sapling_for_planting(state) # verified basically working
@@ -1981,36 +2117,146 @@ def get_action_activations(action: str, env: CraftaxClassicSymbolicEnv, rng):
 
     vectorized_acts = jax.jit(jax.vmap(get_activations, in_axes=(0, None), out_axes=0))
 
-    checkpointer = ocp.StandardCheckpointer()
-    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
+    activations = vectorized_acts(states, params)
+    if debug:
+        ACTION_MAP = {
+            0: "NOOP",
+            1: "LEFT",
+            2: "RIGHT",
+            3: "UP",
+            4: "DOWN",
+            5: "DO",
+            6: "SLEEP",
+            7: "PLACE_STONE",
+            8: "PLACE_TABLE",
+            9: "PLACE_FURNACE",
+            10: "PLACE_PLANT",
+            11: "MAKE_WOOD_PICKAXE",
+            12: "MAKE_STONE_PICKAXE",
+            13: "MAKE_IRON_PICKAXE",
+            14: "MAKE_WOOD_SWORD",
+            15: "MAKE_STONE_SWORD",
+            16: "MAKE_IRON_SWORD"
+        }
+
+        action = activations[-1]
+        maximum_action = jnp.argmax(action, axis=1)
+
+        for action in maximum_action:
+            human_readable = ACTION_MAP[action.item()]
+            print(human_readable)
+    return activations
+
+def get_vec_addition_result(
+        situation: str,
+        env: CraftaxClassicSymbolicEnv,
+        params: dict,
+        activation_addition,
+        layer: int,
+        seed: int = 0,
+        debug=False
+):
+    rng = jax.random.PRNGKey(seed)
+    def generate_states(carry, unused):
+        rng, i = carry
+        rng, env_rng = jax.random.split(rng)
+        obs, state = env.reset(env_rng)
+        if situation == "control":
+            pass
+        elif situation == "table":
+            state = give_wood_for_table(state) # verified working
+        elif situation == "planting":
+            state = give_sapling_for_planting(state) # verified basically working
+        elif situation == "wood_tool":
+            state = wood_tool_circumstance(state) # not quite working, but increases p(behavior)
+        elif situation == "place_stone":
+            state = give_stone_for_furnace_and_placing_stone(state) # also working, but it only really places stone
+        elif situation == "stone_tool":
+            state = stone_tool_circumstance(state) # increases p(behavior), but not quite working
+        elif situation == "iron_tool":
+            state = iron_tool_circumstance(state) # actually working relatively well
+        else:
+            raise ValueError("Invalid action")
+        obs = render_craftax_symbolic(state)
+        obs_pix = render_craftax_pixels(
+            state, 
+            block_pixel_size = 16
+        )
+        return (rng, i+1), (obs, obs_pix)
+    _, (states, pixels) = jax.lax.scan(generate_states, (rng, 0), None, length=525)
+
+    network = ActorCritic_with_hook(17, 512)
+    vectorized_vec_addition = jax.jit(network.add_act_to_layer, static_argnames=("layer"))
+    pi = vectorized_vec_addition(params, states, activation_addition, layer)
+    if debug:
+        ACTION_MAP = {
+            0: "NOOP",
+            1: "LEFT",
+            2: "RIGHT",
+            3: "UP",
+            4: "DOWN",
+            5: "DO",
+            6: "SLEEP",
+            7: "PLACE_STONE",
+            8: "PLACE_TABLE",
+            9: "PLACE_FURNACE",
+            10: "PLACE_PLANT",
+            11: "MAKE_WOOD_PICKAXE",
+            12: "MAKE_STONE_PICKAXE",
+            13: "MAKE_IRON_PICKAXE",
+            14: "MAKE_WOOD_SWORD",
+            15: "MAKE_STONE_SWORD",
+            16: "MAKE_IRON_SWORD"
+        }
+
+        action = pi.logits
+        maximum_action = jnp.argmax(action, axis=1)
+
+        for action in maximum_action:
+            human_readable = ACTION_MAP[action.item()]
+            print(human_readable)
+    return pi
+
+from tqdm import tqdm
+jitted_action_activations = jax.jit(get_action_activations, static_argnames=("action", "env", "seed", "debug"))
+jitted_vec_addition_result = jax.jit(get_vec_addition_result, static_argnames=("situation", "env", "layer", "seed", "debug"))
+fracs = list()
+for checkpoint_no in tqdm(range(1525)):
+    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{checkpoint_no}"
     folder_list = os.listdir(checkpoint_directory)
     params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-    activations = vectorized_acts(states, params)
-    # #%%
-    # ACTION_MAP = {
-    #     0: "NOOP",
-    #     1: "LEFT",
-    #     2: "RIGHT",
-    #     3: "UP",
-    #     4: "DOWN",
-    #     5: "DO",
-    #     6: "SLEEP",
-    #     7: "PLACE_STONE",
-    #     8: "PLACE_TABLE",
-    #     9: "PLACE_FURNACE",
-    #     10: "PLACE_PLANT",
-    #     11: "MAKE_WOOD_PICKAXE",
-    #     12: "MAKE_STONE_PICKAXE",
-    #     13: "MAKE_IRON_PICKAXE",
-    #     14: "MAKE_WOOD_SWORD",
-    #     15: "MAKE_STONE_SWORD",
-    #     16: "MAKE_IRON_SWORD"
-    # }
+    network = ActorCritic_with_hook(17, 512)
+    
+    layer_number = 1
+    control_acts = jitted_action_activations(
+        "control",
+        env, 
+        params, 
+        seed = 1
+    )
+    table_acts = jitted_action_activations(
+        "table", 
+        env, 
+        params, 
+        seed = 1
+    )
+    layer_addition = table_acts[layer_number] - control_acts[layer_number]
+    pi = jitted_vec_addition_result(
+        "control", 
+        env, 
+        params, 
+        layer_addition,
+        layer_number, 
+        seed=0, 
+        debug=False
+    )
+    action = pi.logits
+    maximum_action = jnp.argmax(action, axis=1)
+    frac_place_table = jnp.sum(maximum_action == 8) / maximum_action.size
+    fracs.append(frac_place_table)
 
-    # action = activations[-1]
-    # maximum_action = jnp.argmax(action, axis=1)
-
-    # for action in maximum_action:
-    #     human_readable = ACTION_MAP[action.item()]
-    #     print(human_readable)
-    return activations
+plt.plot(fracs)
+plt.xlabel("Checkpoint")
+plt.ylabel("Fraction of Place Table Actions")
+plt.title(f"table - control Act Add on ckpt {checkpoint_no}")
+plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/frac_place_table_{checkpoint_no}.png")
