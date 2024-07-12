@@ -2404,3 +2404,16 @@ for layer_number in range(3):
         os.makedirs(f"/workspace/CraftaxDevinterp/intermediate_data/{intervention}/{layer_number}", exist_ok=True)
         plt.savefig(f"/workspace/CraftaxDevinterp/intermediate_data/{intervention}/{layer_number}/action_over_time.png")
         plt.close()
+
+# Looking at results so far, one interesting story we can tell is that act-adds work well early on, but 
+# degrade later on. Or do they just operate on more complicated concepts?
+
+# TODO: Add in analysis of different player directions
+# TODO: see if random inventory has an impact on anything
+# TODO: still need to implement sleep action situation
+# TODO: Mobs? First analyze behaviors that can result -- fight & run away
+# TODO: In random environments, measure the extent to which each of these vectors are active (when they make sense)
+# TODO: or perhaps in a full game played by the model. Can we see when its using which shards?
+# TODO: I expect this to be unintresting, but worth looking at: What happens in sleep?
+# TODO: Do the intervention vectors work better if we instead just *condition* on the model having done the action? Rather
+    # than doing as we do here and making a custom minimum change intervention? But then which model?
