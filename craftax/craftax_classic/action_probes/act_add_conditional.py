@@ -368,7 +368,6 @@ def test_vector_addition(
         params: dict, 
         add_act_no: int, 
         sub_act_no: int, 
-        test_act_no: int,
         layer: int, 
         scale: float = 1.0,
         num_envs: int = 8, 
@@ -407,8 +406,8 @@ def test_vector_addition(
             in_axes=(None, 0, None, None)
         )
     )
-    test_logits, _ = vectorized_act_addition(params, conditioned_obs[test_act_no], act_add, layer)
-    control_act_nos = [i for i in range(17) if i != test_act_no]
+    test_logits, _ = vectorized_act_addition(params, conditioned_obs[sub_act_no], act_add, layer)
+    control_act_nos = [i for i in range(17) if i != sub_act_no]
     for control_act_no in control_act_nos:
         control_logits_add = vectorized_act_addition(params, conditioned_obs[control_act_no], act_add, layer)
         control_logits_null = vectorized_act_addition(params, conditioned_obs[control_act_no], jnp.zeros_like(act_add), layer)
@@ -452,12 +451,11 @@ checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 #%%
-test_vector_addition(params, 8, 7, 7, 0)
+test_vector_addition(params, 8, 7, 0)
 
 #%%
 # Now there are five things we care to vary here:
 # 1. Time
 # 2. Add vec number
 # 3. Sub vec number
-# 4. Test distribution
 
