@@ -118,7 +118,7 @@ print(f"Time taken with {num_steps} and {num_envs} is {t1-t0}")
 # first we generate a small trajectory to view the distribution of logits
 rng = jax.random.PRNGKey(0)
 num_envs = 64
-num_steps = 1e5
+num_steps = 1e6
 
 checkpointer = ocp.StandardCheckpointer()
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
@@ -129,15 +129,19 @@ print(logits.shape)
 # %%
 # Then we view that distribution of logits for each action
 logits = jnp.reshape(logits, shape=(-1, 17))
+savedir = "/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/action_distributions"
 
 for action_no in range(17):
     plt.hist(logits[:, action_no], bins=100)
     plt.title(f"Action {action_no} logits")
-    plt.show()
+    plt.savefig(f"{savedir}/action_{action_no}_logits.png")
+    plt.close()
+
 
 probs = jnp.reshape(probs, shape=(-1, 17))
 
 for action_no in range(17):
     plt.hist(probs[:, action_no], bins=100)
     plt.title(f"Action {action_no} probs")
-    plt.show()
+    plt.savefig(f"{savedir}/action_{action_no}_probs.png")
+    plt.close()
