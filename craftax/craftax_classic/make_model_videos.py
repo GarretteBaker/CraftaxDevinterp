@@ -45,7 +45,7 @@ def generate_trajectory(network_params, rng, num_envs=num_envs, num_steps=num_st
     env = AutoResetEnvWrapper(env)
     env = BatchEnvWrapper(env, num_envs)
     env_params = env.default_params
-    network = ActorCritic(env.action_space(env_params).n, 512)
+    network = ActorCritic(env.action_space(env_params).n, 512, activation='relu')
 
     class Transition(NamedTuple):
         tracking: jnp.ndarray
@@ -181,7 +181,8 @@ checkpoint_list = os.listdir(checkpoint_directory)
 num_models = len(checkpoint_list)
 
 # selected_models = [0, 200, 822, 1100, 1600]
-selected_models = [200, 822, 1100, 1524]
+# selected_models = [200, 822, 1100, 1524]
+selected_models = [1524]
 for modelno in tqdm(selected_models, desc="Model"):
     checkpointer = ocp.StandardCheckpointer()
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{checkpoint_list[modelno]}"
