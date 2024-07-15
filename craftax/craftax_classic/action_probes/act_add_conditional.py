@@ -117,7 +117,7 @@ print(f"Time taken with {num_steps} and {num_envs} is {t1-t0}")
 #%%
 # first we generate a small trajectory to view the distribution of logits
 rng = jax.random.PRNGKey(0)
-num_envs = 64
+num_envs = 8
 num_steps = 1e6
 
 checkpointer = ocp.StandardCheckpointer()
