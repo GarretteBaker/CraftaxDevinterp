@@ -503,6 +503,8 @@ print(f"Nontarget action probs delta is {nontarget_action_probs_diff}")
 # 2. Add vec number
 # 3. Sub vec number
 
+# I'm skeptical of control. Its always zero. That can't be right!
+
 numbers = range(17)
 all_pairs = [(i, j) for i in numbers for j in numbers if i != j]
 
