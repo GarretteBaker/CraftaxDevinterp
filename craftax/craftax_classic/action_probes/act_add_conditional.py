@@ -349,5 +349,104 @@ def get_action_activations(
             print(human_readable)
     return activations
 
-get_action_activations(conditioned_obs[0], params, debug=True)
+for i in range(17):
+    get_action_activations(conditioned_obs[i], params, debug=True)
 # %%
+# And finally we can make the activation addition function
+@jax.jit
+def get_vec_addition_result(
+        params: dict,
+        obs: jnp.ndarray,
+        addition: jnp.ndarray, 
+        layer: int
+):
+    network = ActorCritic_with_hook(17, 512)
+    pi = network.add_act_to_layer(params, obs, addition, layer)
+    return pi.logits
+
+def test_vector_addition(
+        params: dict, 
+        add_act_no: int, 
+        sub_act_no: int, 
+        test_act_no: int,
+        control_act_no: int,
+        layer: int, 
+        scale: float = 1.0,
+        num_envs: int = 8, 
+        num_steps: int = 1e4,
+        seed: int = 0, 
+        debug: bool = False,
+):
+    rng = jax.random.PRNGKey(seed)
+    rng, traj_rng = jax.random.split(rng)
+    (_, probs, obs), _ = jit_gen_traj(params, traj_rng, num_envs, num_steps, log_obses=True)
+    probs = jnp.reshape(probs, shape=(-1, 17))
+    obs_shape = (obs.shape[0] * obs.shape[1],) + obs.shape[2:]
+    obs = jnp.reshape(obs, shape=obs_shape)
+
+    indices = [jnp.where(probs[:, i] > 0.5) for i in range(17)]
+    conditioned_obs = [obs[idx] for idx in indices]
+
+    add_act = get_action_activations(conditioned_obs[add_act_no], params)[layer]
+    add_act = add_act.mean(axis=0)
+    sub_act = get_action_activations(conditioned_obs[sub_act_no], params)[layer]
+    sub_act = sub_act.mean(axis=0)
+    act_add = (add_act - sub_act) * scale
+
+    rng, traj_rng = jax.random.split(rng)
+    (_, probs, obs), _ = jit_gen_traj(params, traj_rng, num_envs, num_steps, log_obses=True)
+    probs = jnp.reshape(probs, shape=(-1, 17))
+    obs_shape = (obs.shape[0] * obs.shape[1],) + obs.shape[2:]
+    obs = jnp.reshape(obs, shape=obs_shape)
+
+    indices = [jnp.where(probs[:, i] > 0.5) for i in range(17)]
+    conditioned_obs = [obs[idx] for idx in indices]
+
+    vectorized_act_addition = jax.jit(
+        jax.vmap(
+            get_vec_addition_result, 
+            in_axes=(None, 0, None, None)
+        )
+    )
+    test_logits = vectorized_act_addition(params, conditioned_obs[test_act_no], act_add, layer)
+    control_logits = vectorized_act_addition(params, conditioned_obs[control_act_no], act_add, layer)
+
+    if debug:
+        ACTION_MAP = {
+            0: "NOOP",
+            1: "LEFT",
+            2: "RIGHT",
+            3: "UP",
+            4: "DOWN",
+            5: "DO",
+            6: "SLEEP",
+            7: "PLACE_STONE",
+            8: "PLACE_TABLE",
+            9: "PLACE_FURNACE",
+            10: "PLACE_PLANT",
+            11: "MAKE_WOOD_PICKAXE",
+            12: "MAKE_STONE_PICKAXE",
+            13: "MAKE_IRON_PICKAXE",
+            14: "MAKE_WOOD_SWORD",
+            15: "MAKE_STONE_SWORD",
+            16: "MAKE_IRON_SWORD"
+        }
+
+        action = test_logits
+        maximum_action = jnp.argmax(action, axis=1)
+
+        for action in maximum_action:
+            human_readable = ACTION_MAP[action.item()]
+            print(human_readable)
+    
+    return test_logits, control_logits
+
+checkpointer = ocp.StandardCheckpointer()
+rng = jax.random.PRNGKey(0)
+num_envs = 8
+num_steps = 1e4
+checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
+folder_list = os.listdir(checkpoint_directory)
+params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+#%%
+test_vector_addition(params, 8, 7, 7, 3, 0)
