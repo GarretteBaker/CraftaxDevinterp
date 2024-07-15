@@ -25,7 +25,7 @@ import pickle
 import scipy as sp
 
 #%%
-def generate_trajectory(network_params, rng, num_envs, num_steps):
+def generate_trajectory(network_params, rng, num_envs, num_steps, log_obses = False):
     env = CraftaxClassicSymbolicEnv()
     env = AutoResetEnvWrapper(env)
     env = BatchEnvWrapper(env, num_envs)
@@ -36,6 +36,7 @@ def generate_trajectory(network_params, rng, num_envs, num_steps):
         logits: jnp.ndarray
         probs: jnp.ndarray
         done: jnp.ndarray
+        obs: jnp.ndarray = None
 
     # COLLECT TRAJECTORIES
     def _env_step(runner_state, unused):
@@ -61,7 +62,8 @@ def generate_trajectory(network_params, rng, num_envs, num_steps):
         transition = Transition(
             logits = logits,
             probs = probs,
-            done = done
+            done = done,
+            obs = last_obs if log_obses else None
         )
         runner_state = (
             env_state,
@@ -82,7 +84,7 @@ def generate_trajectory(network_params, rng, num_envs, num_steps):
     runner_state, traj_batch = jax.lax.scan(
         _env_step, runner_state, None, num_steps
     )
-    return (traj_batch.logits, traj_batch.probs), traj_batch.done
+    return (traj_batch.logits, traj_batch.probs, traj_batch.obs), traj_batch.done
 jit_gen_traj = jax.jit(generate_trajectory, static_argnames=("num_envs", "num_steps"))
 # jit_gen_traj = jax.jit(generate_trajectory)
 #%%
@@ -124,7 +126,7 @@ checkpointer = ocp.StandardCheckpointer()
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-(logits, probs), _ = jit_gen_traj(params, rng, num_envs, num_steps)
+(logits, probs, _), _ = jit_gen_traj(params, rng, num_envs, num_steps)
 print(logits.shape)
 # %%
 # Then we view that distribution of logits for each action
@@ -145,3 +147,14 @@ for action_no in range(17):
     plt.title(f"Action {action_no} probs")
     plt.savefig(f"{savedir}/action_{action_no}_probs.png")
     plt.close()
+
+#%%
+# Seems like a reasonable cutoff is +10 logits. We can now condition on this, and get the relevant observations for each action
+(logits, _, obs), _ = jit_gen_traj(params, rng, num_envs, num_steps, log_obses=True)
+logits = jnp.reshape(logits, shape=(-1, 17))
+obs_shape = (obs.shape[0] * obs.shape[1],) + obs.shape[2:]
+obs = jnp.reshape(obs, shape=obs_shape)
+
+indices = [jnp.where(logits[:, i] > 10) for i in range(17)]
+
+conditioned_obs = [obs[idx] for idx in indices]
