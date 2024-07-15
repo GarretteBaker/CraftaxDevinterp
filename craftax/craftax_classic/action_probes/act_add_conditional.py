@@ -454,7 +454,7 @@ params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 test_vector_addition(params, 8, 7, 0)
 
 #%%
-# Now there are five things we care to vary here:
+# Now there are three things we care to vary here:
 # 1. Time
 # 2. Add vec number
 # 3. Sub vec number
