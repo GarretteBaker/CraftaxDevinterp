@@ -364,6 +364,10 @@ def get_vec_addition_result(
     pi = network.add_act_to_layer(params, obs, addition, layer)
     return pi.logits
 
+@jax.jit
+def logits_to_probs(logits):
+    return jax.nn.softmax(logits, axis=-1)
+
 def test_vector_addition(
         params: dict, 
         add_act_no: int, 
@@ -406,12 +410,48 @@ def test_vector_addition(
             in_axes=(None, 0, None, None)
         )
     )
-    test_logits, _ = vectorized_act_addition(params, conditioned_obs[sub_act_no], act_add, layer)
+    test_logits = vectorized_act_addition(params, conditioned_obs[sub_act_no], act_add, layer)
     control_act_nos = [i for i in range(17) if i != sub_act_no]
     for control_act_no in control_act_nos:
         control_logits_add = vectorized_act_addition(params, conditioned_obs[control_act_no], act_add, layer)
         control_logits_null = vectorized_act_addition(params, conditioned_obs[control_act_no], jnp.zeros_like(act_add), layer)
         control_diff = jnp.linalg.norm(control_logits_add - control_logits_null)
+
+    # lets actually just look at the increase in the target action, and the decrease in the
+    # nontarget action, relative to no act addition
+    null_logits = vectorized_act_addition(
+        params, 
+        conditioned_obs[sub_act_no], 
+        jnp.zeros_like(act_add), 
+        layer
+    )
+
+    test_probs = logits_to_probs(test_logits)
+    null_probs = logits_to_probs(null_logits)
+
+    target_action_add_logits = test_logits[:, add_act_no]
+    target_action_null_logits = null_logits[:, add_act_no]
+    # print(f"target action add logits mean: {target_action_add_logits.mean()}")
+    # print(f"target action null logits mean: {target_action_null_logits.mean()}")
+    target_action_logit_diff = jnp.mean(target_action_add_logits - target_action_null_logits)
+
+    nontarget_action_add_logits = test_logits[:, sub_act_no]
+    nontarget_action_null_logits = null_logits[:, sub_act_no]
+    # print(f"nontarget action add logits mean: {nontarget_action_add_logits.mean()}")
+    # print(f"nontarget action null logits mean: {nontarget_action_null_logits.mean()}")
+    nontarget_action_logit_diff = jnp.mean(nontarget_action_add_logits - nontarget_action_null_logits)
+
+    target_action_add_probs = test_probs[:, add_act_no]
+    target_action_null_probs = null_probs[:, add_act_no]
+    target_action_probs_diff = jnp.mean(target_action_add_probs - target_action_null_probs)
+    # print(f"target action add probs mean: {target_action_add_probs.mean()}")
+    # print(f"target action null probs mean: {target_action_null_probs.mean()}")
+
+    nontarget_action_add_probs = test_probs[:, sub_act_no]
+    nontarget_action_null_probs = null_probs[:, sub_act_no]
+    nontarget_action_probs_diff = jnp.mean(nontarget_action_add_probs - nontarget_action_null_probs)
+    # print(f"nontarget action add probs mean: {nontarget_action_add_probs.mean()}")
+    # print(f"nontarget action null probs mean: {nontarget_action_null_probs.mean()}")
 
     if debug:
         ACTION_MAP = {
@@ -441,17 +481,21 @@ def test_vector_addition(
             human_readable = ACTION_MAP[action.item()]
             print(human_readable)
     
-    return test_logits, control_diff
+    return test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff
 
 checkpointer = ocp.StandardCheckpointer()
 rng = jax.random.PRNGKey(0)
 num_envs = 8
-num_steps = 1e4
+num_steps = 1e5
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-#%%
-test_vector_addition(params, 8, 7, 0)
+test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff = test_vector_addition(params, 8, 7, 1, scale=8.0, num_envs=num_envs, num_steps=num_steps)
+print(f"Control diff is {control_diff}")
+print(f"Target action logit delta is {target_action_logit_diff}")
+print(f"Nontarget action logit delta is {nontarget_action_logit_diff}")
+print(f"Target action probs delta is {target_action_probs_diff}")
+print(f"Nontarget action probs delta is {nontarget_action_probs_diff}")
 
 #%%
 # Now there are three things we care to vary here:
@@ -459,3 +503,10 @@ test_vector_addition(params, 8, 7, 0)
 # 2. Add vec number
 # 3. Sub vec number
 
+numbers = range(17)
+all_pairs = [(i, j) for i in numbers for j in numbers if i != j]
+
+for add_act_no, sub_act_no in all_pairs:
+    print(f"Testing for {add_act_no} and {sub_act_no}")
+    test_logits, control_diff = test_vector_addition(params, add_act_no, sub_act_no, 0, debug=True)
+# %%
