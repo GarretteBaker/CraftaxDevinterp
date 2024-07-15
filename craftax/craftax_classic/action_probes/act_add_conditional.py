@@ -89,84 +89,84 @@ def generate_trajectory(network_params, rng, num_envs, num_steps, log_obses = Fa
 jit_gen_traj = jax.jit(generate_trajectory, static_argnames=("num_envs", "num_steps", "log_obses"))
 # jit_gen_traj = jax.jit(generate_trajectory)
 #%%
-# step 0: getting a sense of time
-rng = jax.random.PRNGKey(0)
-num_envs = 64
-num_steps = 1e2
-checkpointer = ocp.StandardCheckpointer()
-checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
-folder_list = os.listdir(checkpoint_directory)
-params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+# # step 0: getting a sense of time
+# rng = jax.random.PRNGKey(0)
+# num_envs = 64
+# num_steps = 1e2
+# checkpointer = ocp.StandardCheckpointer()
+# checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
+# folder_list = os.listdir(checkpoint_directory)
+# params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
-import time
-t0 = time.time()
-(logits, probs, _), _ = jit_gen_traj(params, rng, num_envs, num_steps)
-t1 = time.time()
-print(f"Time taken with {num_steps} and {num_envs} is {t1-t0}")
+# import time
+# t0 = time.time()
+# (logits, probs, _), _ = jit_gen_traj(params, rng, num_envs, num_steps)
+# t1 = time.time()
+# print(f"Time taken with {num_steps} and {num_envs} is {t1-t0}")
 
-num_steps = 1e3
-t0 = time.time()
-(logits, probs), _ = jit_gen_traj(params, rng, num_envs, num_steps)
-t1 = time.time()
-print(f"Time taken with {num_steps} and {num_envs} is {t1-t0}")
+# num_steps = 1e3
+# t0 = time.time()
+# (logits, probs), _ = jit_gen_traj(params, rng, num_envs, num_steps)
+# t1 = time.time()
+# print(f"Time taken with {num_steps} and {num_envs} is {t1-t0}")
 
-num_steps = 1e4
-t0 = time.time()
-(logits, probs), _ = jit_gen_traj(params, rng, num_envs, num_steps)
-t1 = time.time()
-print(f"Time taken with {num_steps} and {num_envs} is {t1-t0}")
+# num_steps = 1e4
+# t0 = time.time()
+# (logits, probs), _ = jit_gen_traj(params, rng, num_envs, num_steps)
+# t1 = time.time()
+# print(f"Time taken with {num_steps} and {num_envs} is {t1-t0}")
 
 #%%
-# first we generate a small trajectory to view the distribution of logits
-rng = jax.random.PRNGKey(0)
-num_envs = 8
-num_steps = 1e6
+# # first we generate a small trajectory to view the distribution of logits
+# rng = jax.random.PRNGKey(0)
+# num_envs = 8
+# num_steps = 1e6
 
-checkpointer = ocp.StandardCheckpointer()
-checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
-folder_list = os.listdir(checkpoint_directory)
-params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-(logits, probs, _), _ = jit_gen_traj(params, rng, num_envs, num_steps)
-print(logits.shape)
-# Then we view that distribution of logits for each action
-logits = jnp.reshape(logits, shape=(-1, 17))
-savedir = "/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/action_distributions"
-os.makedirs(savedir, exist_ok=True)
-for action_no in range(17):
-    plt.hist(logits[:, action_no], bins=100)
-    plt.title(f"Action {action_no} logits")
-    plt.savefig(f"{savedir}/action_{action_no}_logits.png")
-    plt.close()
+# checkpointer = ocp.StandardCheckpointer()
+# checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
+# folder_list = os.listdir(checkpoint_directory)
+# params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+# (logits, probs, _), _ = jit_gen_traj(params, rng, num_envs, num_steps)
+# print(logits.shape)
+# # Then we view that distribution of logits for each action
+# logits = jnp.reshape(logits, shape=(-1, 17))
+# savedir = "/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/action_distributions"
+# os.makedirs(savedir, exist_ok=True)
+# for action_no in range(17):
+#     plt.hist(logits[:, action_no], bins=100)
+#     plt.title(f"Action {action_no} logits")
+#     plt.savefig(f"{savedir}/action_{action_no}_logits.png")
+#     plt.close()
 
 
-probs = jnp.reshape(probs, shape=(-1, 17))
+# probs = jnp.reshape(probs, shape=(-1, 17))
 
-for action_no in range(17):
-    plt.hist(probs[:, action_no], bins=100)
-    plt.title(f"Action {action_no} probs")
-    plt.savefig(f"{savedir}/action_{action_no}_probs.png")
-    plt.close()
+# for action_no in range(17):
+#     plt.hist(probs[:, action_no], bins=100)
+#     plt.title(f"Action {action_no} probs")
+#     plt.savefig(f"{savedir}/action_{action_no}_probs.png")
+#     plt.close()
 
 #%%
 # Seems like a reasonable cutoff is the dumb & obvious 50% prob. We can now condition on this, and get the relevant observations for each action
 # TODO: scale this up
 
-checkpointer = ocp.StandardCheckpointer()
-rng = jax.random.PRNGKey(0)
-num_envs = 8
-num_steps = 1e4
-checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
-folder_list = os.listdir(checkpoint_directory)
-params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
+# checkpointer = ocp.StandardCheckpointer()
+# rng = jax.random.PRNGKey(0)
+# num_envs = 8
+# num_steps = 1e4
+# checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
+# folder_list = os.listdir(checkpoint_directory)
+# params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
 
-(logits, probs, obs), _ = jit_gen_traj(params, rng, num_envs, num_steps, log_obses=True)
-probs = jnp.reshape(probs, shape=(-1, 17))
-obs_shape = (obs.shape[0] * obs.shape[1],) + obs.shape[2:]
-obs = jnp.reshape(obs, shape=obs_shape)
+# (logits, probs, obs), _ = jit_gen_traj(params, rng, num_envs, num_steps, log_obses=True)
+# probs = jnp.reshape(probs, shape=(-1, 17))
+# obs_shape = (obs.shape[0] * obs.shape[1],) + obs.shape[2:]
+# obs = jnp.reshape(obs, shape=obs_shape)
 
-indices = [jnp.where(probs[:, i] > 0.5) for i in range(17)]
+# indices = [jnp.where(probs[:, i] > 0.5) for i in range(17)]
 
-conditioned_obs = [obs[idx] for idx in indices]
+# conditioned_obs = [obs[idx] for idx in indices]
 
 #%%
 # Lets now verify that we get the correct actions for each obs set
@@ -349,8 +349,8 @@ def get_action_activations(
             print(human_readable)
     return activations
 
-for i in range(17):
-    get_action_activations(conditioned_obs[i], params, debug=True)
+# for i in range(17):
+#     get_action_activations(conditioned_obs[i], params, debug=True)
 # %%
 # And finally we can make the activation addition function
 @jax.jit
@@ -486,7 +486,7 @@ def test_vector_addition(
 checkpointer = ocp.StandardCheckpointer()
 rng = jax.random.PRNGKey(0)
 num_envs = 8
-num_steps = 1e5
+num_steps = 1e4
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
@@ -506,7 +506,10 @@ print(f"Nontarget action probs delta is {nontarget_action_probs_diff}")
 numbers = range(17)
 all_pairs = [(i, j) for i in numbers for j in numbers if i != j]
 
-for add_act_no, sub_act_no in all_pairs:
-    print(f"Testing for {add_act_no} and {sub_act_no}")
-    test_logits, control_diff = test_vector_addition(params, add_act_no, sub_act_no, 0, debug=True)
-# %%
+pairwise_results = dict()
+for add_act_no, sub_act_no in tqdm(all_pairs):
+    _, control_diff, target_action_logit_diff, nontarget_action_logit_diff, _, _ = test_vector_addition(params, add_act_no, sub_act_no, 1, scale=8.0, num_envs=num_envs, num_steps=num_steps)
+    pairwise_results[(add_act_no, sub_act_no)] = (control_diff, target_action_logit_diff, nontarget_action_logit_diff)
+    print(f"For act add {add_act_no} and act sub {sub_act_no}, control diff is {control_diff}, target action logit diff is {target_action_logit_diff}, nontarget action logit diff is {nontarget_action_logit_diff}")
+
+print(pairwise_results)
