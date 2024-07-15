@@ -130,7 +130,7 @@ print(logits.shape)
 # Then we view that distribution of logits for each action
 logits = jnp.reshape(logits, shape=(-1, 17))
 savedir = "/workspace/CraftaxDevinterp/intermediate_data/modelno_1524/action_distributions"
-
+os.makedirs(savedir, exist_ok=True)
 for action_no in range(17):
     plt.hist(logits[:, action_no], bins=100)
     plt.title(f"Action {action_no} logits")
