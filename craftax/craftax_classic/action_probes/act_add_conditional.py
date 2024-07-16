@@ -505,13 +505,24 @@ print(f"Nontarget action probs delta is {nontarget_action_probs_diff}")
 
 # I'm skeptical of control. Its always zero. That can't be right!
 
-numbers = range(17)
-all_pairs = [(i, j) for i in numbers for j in numbers if i != j]
+# numbers = range(17)
+# all_pairs = [(i, j) for i in numbers for j in numbers if i != j]
 
-pairwise_results = dict()
-for add_act_no, sub_act_no in tqdm(all_pairs):
+jitted_tva = jax.jit(test_vector_addition, static_argnames=("add_act_no", "sub_act_no", "layer", "num_envs", "num_steps"))
+results = np.zeros((1525, 3))
+add_act_no = 8
+sub_act_no = 7
+for modelno in range(1525):
+    checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{modelno}"
+    folder_list = os.listdir(checkpoint_directory)
+    params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
     _, control_diff, target_action_logit_diff, nontarget_action_logit_diff, _, _ = test_vector_addition(params, add_act_no, sub_act_no, 1, scale=8.0, num_envs=num_envs, num_steps=num_steps)
-    pairwise_results[(add_act_no, sub_act_no)] = (control_diff, target_action_logit_diff, nontarget_action_logit_diff)
-    print(f"For act add {add_act_no} and act sub {sub_act_no}, control diff is {control_diff}, target action logit diff is {target_action_logit_diff}, nontarget action logit diff is {nontarget_action_logit_diff}")
+    results[modelno, :] = np.array([control_diff, target_action_logit_diff, nontarget_action_logit_diff])
 
-print(pairwise_results)
+save_dir = f"/workspace/CraftaxDevinterp/intermediate_data/modelno_{1524}/add_act_{add_act_no}_sub_act_{sub_act_no}"
+os.makedirs(save_dir, exist_ok=True)
+np.save(f"{save_dir}/results.npy", results)
+
+plt.plot(results[:, 0], label="control_delta")
+plt.plot(results[:, 1], label="target_delta")
+plt.plot(results[:, 2], label="nontarget_delta")
