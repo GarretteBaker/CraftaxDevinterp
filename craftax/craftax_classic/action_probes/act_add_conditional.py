@@ -370,24 +370,20 @@ def logits_to_probs(logits):
 
 def test_vector_addition(
         params: dict, 
+        obs1: jnp.ndarray,
+        obs2: jnp.ndarray,
         add_act_no: int, 
         sub_act_no: int, 
         layer: int, 
         scale: float = 1.0,
-        num_envs: int = 8, 
-        num_steps: int = 1e4,
-        seed: int = 0, 
         debug: bool = False,
 ):
-    rng = jax.random.PRNGKey(seed)
-    rng, traj_rng = jax.random.split(rng)
-    (_, probs, obs), _ = jit_gen_traj(params, traj_rng, num_envs, num_steps, log_obses=True)
-    probs = jnp.reshape(probs, shape=(-1, 17))
-    obs_shape = (obs.shape[0] * obs.shape[1],) + obs.shape[2:]
-    obs = jnp.reshape(obs, shape=obs_shape)
+    network = ActorCritic(17, 512)
+    pi, _ = network.apply(params, obs1)
+    probs = pi.probs
 
     indices = [jnp.where(probs[:, i] > 0.5) for i in range(17)]
-    conditioned_obs = [obs[idx] for idx in indices]
+    conditioned_obs = [obs1[idx] for idx in indices]
 
     add_act = get_action_activations(conditioned_obs[add_act_no], params)[layer]
     add_act = add_act.mean(axis=0)
@@ -395,14 +391,11 @@ def test_vector_addition(
     sub_act = sub_act.mean(axis=0)
     act_add = (add_act - sub_act) * scale
 
-    rng, traj_rng = jax.random.split(rng)
-    (_, probs, obs), _ = jit_gen_traj(params, traj_rng, num_envs, num_steps, log_obses=True)
-    probs = jnp.reshape(probs, shape=(-1, 17))
-    obs_shape = (obs.shape[0] * obs.shape[1],) + obs.shape[2:]
-    obs = jnp.reshape(obs, shape=obs_shape)
+    pi, _ = network.apply(params, obs2)
+    probs = pi.probs
 
     indices = [jnp.where(probs[:, i] > 0.5) for i in range(17)]
-    conditioned_obs = [obs[idx] for idx in indices]
+    conditioned_obs = [obs2[idx] for idx in indices]
 
     vectorized_act_addition = jax.vmap(
             get_vec_addition_result, 
@@ -497,14 +490,33 @@ def test_vector_addition(
     
     return test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff, control_diffs
 
+import time
 checkpointer = ocp.StandardCheckpointer()
 rng = jax.random.PRNGKey(0)
 num_envs = 8
-num_steps = 1e4
+num_steps = 1e3
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff, control_diffs = test_vector_addition(params, 8, 7, 1, scale=8.0, num_envs=num_envs, num_steps=num_steps)
+seed = 0
+rng = jax.random.PRNGKey(seed)
+rng, traj_rng = jax.random.split(rng)
+(_, probs, obs), _ = jit_gen_traj(params, traj_rng, num_envs, num_steps, log_obses=True)
+obs_shape = (obs.shape[0] * obs.shape[1],) + obs.shape[2:]
+obs1 = jnp.reshape(obs, shape=obs_shape)
+
+rng, traj_rng = jax.random.split(rng)
+(_, probs, obs), _ = jit_gen_traj(params, traj_rng, num_envs, num_steps, log_obses=True)
+probs = jnp.reshape(probs, shape=(-1, 17))
+obs_shape = (obs.shape[0] * obs.shape[1],) + obs.shape[2:]
+obs2 = jnp.reshape(obs, shape=obs_shape)
+
+
+t0 = time.time()
+h = test_vector_addition(params, obs1, obs2, 8, 7, 1)
+test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff, control_diffs = h
+t1 = time.time()
+print(f"Time taken is {t1-t0}")
 print(f"Control diff is {control_diff}")
 print(f"Target action logit delta is {target_action_logit_diff}")
 print(f"Nontarget action logit delta is {nontarget_action_logit_diff}")
@@ -523,20 +535,29 @@ print(f"Nontarget action probs delta is {nontarget_action_probs_diff}")
 # all_pairs = [(i, j) for i in numbers for j in numbers if i != j]
 
 jitted_tva = jax.jit(test_vector_addition, static_argnames=("add_act_no", "sub_act_no", "layer", "num_envs", "num_steps"))
-results = np.zeros((1525, 3))
 add_act_no = 8
 sub_act_no = 7
+save_dir = f"/workspace/CraftaxDevinterp/intermediate_data/add_act_{add_act_no}_sub_act_{sub_act_no}/time_series"
+os.makedirs(save_dir, exist_ok=True)
+
 for modelno in tqdm(range(1525)):
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{modelno}"
     folder_list = os.listdir(checkpoint_directory)
     params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-    r = test_vector_addition(params, add_act_no, sub_act_no, 1, scale=8.0, num_envs=num_envs, num_steps=num_steps)
+    r = test_vector_addition(params, obs1, obs2, add_act_no, sub_act_no, 1, scale=8.0, num_envs=num_envs, num_steps=num_steps)
     test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff, control_diffs = r
-    results[modelno, :] = np.array([control_diff, target_action_logit_diff, nontarget_action_logit_diff])
+    r = np.array([control_diff, target_action_logit_diff, nontarget_action_logit_diff])
+    np.save(f"{save_dir}/{modelno}.npy", r)
 
-save_dir = f"/workspace/CraftaxDevinterp/intermediate_data/modelno_{1524}/add_act_{add_act_no}_sub_act_{sub_act_no}"
-os.makedirs(save_dir, exist_ok=True)
-np.save(f"{save_dir}/results.npy", results)
+results = []
+for modelno in range(1525):
+    file_path = f"{save_dir}/{modelno}.npy"
+    if os.path.exists(file_path):
+        results.append(np.load(file_path))
+    else:
+        print(f"Warning: File not found for model {modelno}")
+
+results = np.array(results)
 
 plt.plot(results[:, 0], label="control_delta")
 plt.plot(results[:, 1], label="target_delta")
