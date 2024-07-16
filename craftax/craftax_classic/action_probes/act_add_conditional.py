@@ -404,18 +404,32 @@ def test_vector_addition(
     indices = [jnp.where(probs[:, i] > 0.5) for i in range(17)]
     conditioned_obs = [obs[idx] for idx in indices]
 
-    vectorized_act_addition = jax.jit(
-        jax.vmap(
+    vectorized_act_addition = jax.vmap(
             get_vec_addition_result, 
             in_axes=(None, 0, None, None)
         )
-    )
     test_logits = vectorized_act_addition(params, conditioned_obs[sub_act_no], act_add, layer)
     control_act_nos = [i for i in range(17) if i != sub_act_no]
+    # for control_act_no in control_act_nos:
+    #     control_logits_add = vectorized_act_addition(params, conditioned_obs[control_act_no], act_add, layer)
+    #     control_logits_null = vectorized_act_addition(params, conditioned_obs[control_act_no], jnp.zeros_like(act_add), layer)
+    #     control_diff = jnp.linalg.norm(control_logits_add - control_logits_null)
+
+    conditioned_obs_vec = jnp.concatenate( [conditioned_obs[i] for i in control_act_nos], axis=0)
+    control_logits_add = vectorized_act_addition(params, conditioned_obs_vec, act_add, layer)
+    control_logits_null = vectorized_act_addition(params, conditioned_obs_vec, jnp.zeros_like(act_add), layer)
+
+    control_diffs = list()
     for control_act_no in control_act_nos:
-        control_logits_add = vectorized_act_addition(params, conditioned_obs[control_act_no], act_add, layer)
-        control_logits_null = vectorized_act_addition(params, conditioned_obs[control_act_no], jnp.zeros_like(act_add), layer)
-        control_diff = jnp.linalg.norm(control_logits_add - control_logits_null)
+        if control_act_no == 0:
+            start = 0
+            end = conditioned_obs[control_act_no].shape[0]
+        else:
+            start = end
+            end = start + conditioned_obs[control_act_no].shape[0]
+        control_diffs.append(jnp.linalg.norm(control_logits_add[start:end] - control_logits_null[start:end]))
+    control_diff = jnp.mean(jnp.array(control_diffs))
+
 
     # lets actually just look at the increase in the target action, and the decrease in the
     # nontarget action, relative to no act addition
@@ -481,7 +495,7 @@ def test_vector_addition(
             human_readable = ACTION_MAP[action.item()]
             print(human_readable)
     
-    return test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff
+    return test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff, control_diffs
 
 checkpointer = ocp.StandardCheckpointer()
 rng = jax.random.PRNGKey(0)
@@ -490,7 +504,7 @@ num_steps = 1e4
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff = test_vector_addition(params, 8, 7, 1, scale=8.0, num_envs=num_envs, num_steps=num_steps)
+test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff, control_diffs = test_vector_addition(params, 8, 7, 1, scale=8.0, num_envs=num_envs, num_steps=num_steps)
 print(f"Control diff is {control_diff}")
 print(f"Target action logit delta is {target_action_logit_diff}")
 print(f"Nontarget action logit delta is {nontarget_action_logit_diff}")
@@ -512,11 +526,12 @@ jitted_tva = jax.jit(test_vector_addition, static_argnames=("add_act_no", "sub_a
 results = np.zeros((1525, 3))
 add_act_no = 8
 sub_act_no = 7
-for modelno in range(1525):
+for modelno in tqdm(range(1525)):
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{modelno}"
     folder_list = os.listdir(checkpoint_directory)
     params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-    _, control_diff, target_action_logit_diff, nontarget_action_logit_diff, _, _ = test_vector_addition(params, add_act_no, sub_act_no, 1, scale=8.0, num_envs=num_envs, num_steps=num_steps)
+    r = test_vector_addition(params, add_act_no, sub_act_no, 1, scale=8.0, num_envs=num_envs, num_steps=num_steps)
+    test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff, control_diffs = r
     results[modelno, :] = np.array([control_diff, target_action_logit_diff, nontarget_action_logit_diff])
 
 save_dir = f"/workspace/CraftaxDevinterp/intermediate_data/modelno_{1524}/add_act_{add_act_no}_sub_act_{sub_act_no}"
