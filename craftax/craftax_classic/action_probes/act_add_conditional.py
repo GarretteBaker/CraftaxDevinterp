@@ -386,10 +386,15 @@ def test_vector_addition(
     conditioned_obs = [obs1[idx] for idx in indices]
 
     add_act = get_action_activations(conditioned_obs[add_act_no], params)[layer]
+    print(f"Norm of add act: {jnp.linalg.norm(add_act)}")
+    print(f"Size of conditioned obs (act add): {conditioned_obs[add_act_no].shape}")
     add_act = add_act.mean(axis=0)
     sub_act = get_action_activations(conditioned_obs[sub_act_no], params)[layer]
+    print(f"Norm of sub act: {jnp.linalg.norm(sub_act)}")
+    print(f"Size of conditioned obs (act sub): {conditioned_obs[sub_act_no].shape}")
     sub_act = sub_act.mean(axis=0)
     act_add = (add_act - sub_act) * scale
+    print(f"Norm of act add: {jnp.linalg.norm(act_add)}")
 
     pi, _ = network.apply(params, obs2)
     probs = pi.probs
@@ -409,8 +414,17 @@ def test_vector_addition(
     #     control_diff = jnp.linalg.norm(control_logits_add - control_logits_null)
 
     conditioned_obs_vec = jnp.concatenate( [conditioned_obs[i] for i in control_act_nos], axis=0)
+    # print(f"Conditioned obs vec shape: {conditioned_obs_vec.shape}")
+    # print(f"Conditioned obs vec norm: {jnp.linalg.norm(conditioned_obs_vec)}")
     control_logits_add = vectorized_act_addition(params, conditioned_obs_vec, act_add, layer)
     control_logits_null = vectorized_act_addition(params, conditioned_obs_vec, jnp.zeros_like(act_add), layer)
+
+    # print(f"Control logits add: {control_logits_add.mean()}")
+    # print(f"Control logits null: {control_logits_null.mean()}")
+    control_probs_add = logits_to_probs(control_logits_add)
+    control_probs_null = logits_to_probs(control_logits_null)
+    # print(f"Control probs add: {control_probs_add.mean()}")
+    # print(f"Control probs null: {control_probs_null.mean()}")
 
     control_diffs = list()
     for control_act_no in control_act_nos:
@@ -420,7 +434,7 @@ def test_vector_addition(
         else:
             start = end
             end = start + conditioned_obs[control_act_no].shape[0]
-        control_diffs.append(jnp.linalg.norm(control_logits_add[start:end] - control_logits_null[start:end]))
+        control_diffs.append(jnp.mean(control_probs_add[start:end] - control_probs_null[start:end]))
     control_diff = jnp.mean(jnp.array(control_diffs))
 
 
@@ -494,7 +508,7 @@ import time
 checkpointer = ocp.StandardCheckpointer()
 rng = jax.random.PRNGKey(0)
 num_envs = 8
-num_steps = 1e3
+num_steps = 1e5
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
@@ -534,20 +548,36 @@ print(f"Nontarget action probs delta is {nontarget_action_probs_diff}")
 # numbers = range(17)
 # all_pairs = [(i, j) for i in numbers for j in numbers if i != j]
 
-jitted_tva = jax.jit(test_vector_addition, static_argnames=("add_act_no", "sub_act_no", "layer", "num_envs", "num_steps"))
+jitted_tva = jax.jit(test_vector_addition, static_argnames=("add_act_no", "sub_act_no", "layer"))
 add_act_no = 8
 sub_act_no = 7
+batch_size = 10
 save_dir = f"/workspace/CraftaxDevinterp/intermediate_data/add_act_{add_act_no}_sub_act_{sub_act_no}/time_series"
 os.makedirs(save_dir, exist_ok=True)
 
+def save_batch(results, modelnos, save_dir):
+    for result, modelno in zip(results, modelnos):
+        np.save(f"{save_dir}/{modelno}.npy", result)
+
+results = list()
+modelnos = list()
 for modelno in tqdm(range(1525)):
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{modelno}"
     folder_list = os.listdir(checkpoint_directory)
     params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
-    r = test_vector_addition(params, obs1, obs2, add_act_no, sub_act_no, 1, scale=8.0, num_envs=num_envs, num_steps=num_steps)
+    r = test_vector_addition(params, obs1, obs2, add_act_no, sub_act_no, 1)
     test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff, control_diffs = r
-    r = np.array([control_diff, target_action_logit_diff, nontarget_action_logit_diff])
-    np.save(f"{save_dir}/{modelno}.npy", r)
+    r = np.array([control_diff, target_action_probs_diff, nontarget_action_probs_diff])
+    if modelno % batch_size == 0:
+        results.append(r)
+        modelnos.append(modelno)
+        save_batch(results, modelnos, save_dir)
+        results = list()
+        modelnos = list()
+    else:
+        results.append(r)
+        modelnos.append(modelno)
+save_batch(results, modelnos, save_dir)
 
 results = []
 for modelno in range(1525):
@@ -565,3 +595,29 @@ plt.plot(results[:, 2], label="nontarget_delta")
 plt.legend()
 plt.savefig(f"{save_dir}/results.png")
 plt.close()
+
+#%%
+import numpy as np
+dir = "/workspace/CraftaxDevinterp/intermediate_data/add_act_8_sub_act_7/time_series"
+results = []
+for modelno in range(1525):
+    file_path = f"{dir}/{modelno}.npy"
+    if os.path.exists(file_path):
+        results.append(np.load(file_path))
+    else:
+        print(f"Warning: File not found for model {modelno}")
+
+results = np.array(results)
+# results = np.nan_to_num(results, nan=0.0)
+print(results[:, 0])
+# %%
+from matplotlib import pyplot as plt
+save_dir = "/workspace/CraftaxDevinterp/intermediate_data/add_act_8_sub_act_7/time_series"
+plt.plot(results[:, 0], label="control_delta")
+plt.plot(results[:, 1], label="target_delta")
+plt.plot(results[:, 2], label="nontarget_delta")
+plt.legend()
+plt.savefig(f"{save_dir}/results.png")
+plt.close()
+
+# %%
