@@ -419,7 +419,8 @@ def test_vector_addition(
     control_obs = obs2[control_obs_indices]
     control_logits_add = vectorized_act_addition(params, control_obs, act_add, layer)
     control_logits_null = vectorized_act_addition(params, control_obs, jnp.zeros_like(act_add), layer)
-    control_diff = jnp.linalg.norm(control_logits_add - control_logits_null)
+    control_diffs = control_logits_add - control_logits_null
+    control_diff = jnp.linalg.norm(control_diffs)
 
     # for control_act_no in control_act_nos:
     #     control_logits_add = vectorized_act_addition(params, conditioned_obs[control_act_no], act_add, layer)
