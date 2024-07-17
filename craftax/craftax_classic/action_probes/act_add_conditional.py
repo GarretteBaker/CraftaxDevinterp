@@ -597,7 +597,7 @@ def save_batch(results, modelnos, save_dir):
 
 results = list()
 modelnos = list()
-for modelno in tqdm(range(54, 1525)):
+for modelno in tqdm(range(1525)):
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{modelno}"
     folder_list = os.listdir(checkpoint_directory)
     params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
