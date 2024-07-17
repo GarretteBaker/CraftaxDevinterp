@@ -413,46 +413,53 @@ def test_vector_addition(
     test_logits = vectorized_act_addition(params, conditioned_obs[sub_act_no], act_add, layer)
     if verbose:
         print(f"Norm of test logits: {jnp.linalg.norm(test_logits)}")
+
     control_act_nos = [i for i in range(17) if i != sub_act_no]
+    control_obs_indices = jnp.where(probs[:, sub_act_no] <= 0.5)
+    control_obs = obs2[control_obs_indices]
+    control_logits_add = vectorized_act_addition(params, control_obs, act_add, layer)
+    control_logits_null = vectorized_act_addition(params, control_obs, jnp.zeros_like(act_add), layer)
+    control_diff = jnp.linalg.norm(control_logits_add - control_logits_null)
+
     # for control_act_no in control_act_nos:
     #     control_logits_add = vectorized_act_addition(params, conditioned_obs[control_act_no], act_add, layer)
     #     control_logits_null = vectorized_act_addition(params, conditioned_obs[control_act_no], jnp.zeros_like(act_add), layer)
     #     control_diff = jnp.linalg.norm(control_logits_add - control_logits_null)
 
-    conditioned_obs_vec = jnp.concatenate( [conditioned_obs[i] for i in control_act_nos], axis=0)
-    if verbose:
-        print(f"Conditioned obs vec shape: {conditioned_obs_vec.shape}")
-        print(f"Conditioned obs vec norm: {jnp.linalg.norm(conditioned_obs_vec)}")
-    control_logits_add = vectorized_act_addition(params, conditioned_obs_vec, act_add, layer)
-    control_logits_null = vectorized_act_addition(params, conditioned_obs_vec, jnp.zeros_like(act_add), layer)
+    # conditioned_obs_vec = jnp.concatenate( [conditioned_obs[i] for i in control_act_nos], axis=0)
+    # if verbose:
+    #     print(f"Conditioned obs vec shape: {conditioned_obs_vec.shape}")
+    #     print(f"Conditioned obs vec norm: {jnp.linalg.norm(conditioned_obs_vec)}")
+    # control_logits_add = vectorized_act_addition(params, conditioned_obs_vec, act_add, layer)
+    # control_logits_null = vectorized_act_addition(params, conditioned_obs_vec, jnp.zeros_like(act_add), layer)
 
-    if verbose:
-        print(f"Control logits add: {control_logits_add.mean()}")
-        print(f"Control logits null: {control_logits_null.mean()}")
-    control_probs_add = logits_to_probs(control_logits_add)
-    control_probs_null = logits_to_probs(control_logits_null)
-    if verbose:
-        print(f"Control probs add: {control_probs_add.mean()}")
-        print(f"Control probs null: {control_probs_null.mean()}")
+    # if verbose:
+    #     print(f"Control logits add: {control_logits_add.mean()}")
+    #     print(f"Control logits null: {control_logits_null.mean()}")
+    # control_probs_add = logits_to_probs(control_logits_add)
+    # control_probs_null = logits_to_probs(control_logits_null)
+    # if verbose:
+    #     print(f"Control probs add: {control_probs_add.mean()}")
+    #     print(f"Control probs null: {control_probs_null.mean()}")
 
-    control_diffs = list()
-    for control_act_no in control_act_nos:
-        if control_act_no == 0:
-            start = 0
-            end = conditioned_obs[control_act_no].shape[0]
-        else:
-            start = end
-            end = start + conditioned_obs[control_act_no].shape[0]
-        print(f"Start: {start}, End: {end}")
-        if start != end:
-            control_diffs.append(jnp.mean(control_probs_add[start:end] - control_probs_null[start:end]))
-            print(f"Control diff for {control_act_no} is {control_diffs[-1]}")
-        else:
-            print(f"Control diff for {control_act_no} is nan so skipping")
-    if len(control_diffs) == 0:
-        control_diff = 0.0
-    else:
-        control_diff = jnp.mean(jnp.array(control_diffs))
+    # control_diffs = list()
+    # for control_act_no in control_act_nos:
+    #     if control_act_no == 0:
+    #         start = 0
+    #         end = conditioned_obs[control_act_no].shape[0]
+    #     else:
+    #         start = end
+    #         end = start + conditioned_obs[control_act_no].shape[0]
+    #     print(f"Start: {start}, End: {end}")
+    #     if start != end:
+    #         control_diffs.append(jnp.mean(control_probs_add[start:end] - control_probs_null[start:end]))
+    #         print(f"Control diff for {control_act_no} is {control_diffs[-1]}")
+    #     else:
+    #         print(f"Control diff for {control_act_no} is nan so skipping")
+    # if len(control_diffs) == 0:
+    #     control_diff = 0.0
+    # else:
+    #     control_diff = jnp.mean(jnp.array(control_diffs))
 
     if verbose: print(f"Control diff is {control_diff}")
 
