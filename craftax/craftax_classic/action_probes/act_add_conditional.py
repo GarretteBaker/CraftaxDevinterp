@@ -377,6 +377,7 @@ def test_vector_addition(
         layer: int, 
         scale: float = 1.0,
         debug: bool = False,
+        verbose: bool = False
 ):
     network = ActorCritic(17, 512)
     pi, _ = network.apply(params, obs1)
@@ -386,15 +387,18 @@ def test_vector_addition(
     conditioned_obs = [obs1[idx] for idx in indices]
 
     add_act = get_action_activations(conditioned_obs[add_act_no], params)[layer]
-    print(f"Norm of add act: {jnp.linalg.norm(add_act)}")
-    print(f"Size of conditioned obs (act add): {conditioned_obs[add_act_no].shape}")
+    if verbose:
+        print(f"Norm of add act: {jnp.linalg.norm(add_act)}")
+        print(f"Size of conditioned obs (act add): {conditioned_obs[add_act_no].shape}")
     add_act = add_act.mean(axis=0)
     sub_act = get_action_activations(conditioned_obs[sub_act_no], params)[layer]
-    print(f"Norm of sub act: {jnp.linalg.norm(sub_act)}")
-    print(f"Size of conditioned obs (act sub): {conditioned_obs[sub_act_no].shape}")
+    if verbose:
+        print(f"Norm of sub act: {jnp.linalg.norm(sub_act)}")
+        print(f"Size of conditioned obs (act sub): {conditioned_obs[sub_act_no].shape}")
     sub_act = sub_act.mean(axis=0)
     act_add = (add_act - sub_act) * scale
-    print(f"Norm of act add: {jnp.linalg.norm(act_add)}")
+    if verbose:
+        print(f"Norm of act add: {jnp.linalg.norm(act_add)}")
 
     pi, _ = network.apply(params, obs2)
     probs = pi.probs
@@ -407,6 +411,8 @@ def test_vector_addition(
             in_axes=(None, 0, None, None)
         )
     test_logits = vectorized_act_addition(params, conditioned_obs[sub_act_no], act_add, layer)
+    if verbose:
+        print(f"Norm of test logits: {jnp.linalg.norm(test_logits)}")
     control_act_nos = [i for i in range(17) if i != sub_act_no]
     # for control_act_no in control_act_nos:
     #     control_logits_add = vectorized_act_addition(params, conditioned_obs[control_act_no], act_add, layer)
@@ -414,17 +420,20 @@ def test_vector_addition(
     #     control_diff = jnp.linalg.norm(control_logits_add - control_logits_null)
 
     conditioned_obs_vec = jnp.concatenate( [conditioned_obs[i] for i in control_act_nos], axis=0)
-    # print(f"Conditioned obs vec shape: {conditioned_obs_vec.shape}")
-    # print(f"Conditioned obs vec norm: {jnp.linalg.norm(conditioned_obs_vec)}")
+    if verbose:
+        print(f"Conditioned obs vec shape: {conditioned_obs_vec.shape}")
+        print(f"Conditioned obs vec norm: {jnp.linalg.norm(conditioned_obs_vec)}")
     control_logits_add = vectorized_act_addition(params, conditioned_obs_vec, act_add, layer)
     control_logits_null = vectorized_act_addition(params, conditioned_obs_vec, jnp.zeros_like(act_add), layer)
 
-    # print(f"Control logits add: {control_logits_add.mean()}")
-    # print(f"Control logits null: {control_logits_null.mean()}")
+    if verbose:
+        print(f"Control logits add: {control_logits_add.mean()}")
+        print(f"Control logits null: {control_logits_null.mean()}")
     control_probs_add = logits_to_probs(control_logits_add)
     control_probs_null = logits_to_probs(control_logits_null)
-    # print(f"Control probs add: {control_probs_add.mean()}")
-    # print(f"Control probs null: {control_probs_null.mean()}")
+    if verbose:
+        print(f"Control probs add: {control_probs_add.mean()}")
+        print(f"Control probs null: {control_probs_null.mean()}")
 
     control_diffs = list()
     for control_act_no in control_act_nos:
@@ -434,8 +443,18 @@ def test_vector_addition(
         else:
             start = end
             end = start + conditioned_obs[control_act_no].shape[0]
-        control_diffs.append(jnp.mean(control_probs_add[start:end] - control_probs_null[start:end]))
-    control_diff = jnp.mean(jnp.array(control_diffs))
+        print(f"Start: {start}, End: {end}")
+        if start != end:
+            control_diffs.append(jnp.mean(control_probs_add[start:end] - control_probs_null[start:end]))
+            print(f"Control diff for {control_act_no} is {control_diffs[-1]}")
+        else:
+            print(f"Control diff for {control_act_no} is nan so skipping")
+    if len(control_diffs) == 0:
+        control_diff = 0.0
+    else:
+        control_diff = jnp.mean(jnp.array(control_diffs))
+
+    if verbose: print(f"Control diff is {control_diff}")
 
 
     # lets actually just look at the increase in the target action, and the decrease in the
@@ -449,30 +468,39 @@ def test_vector_addition(
 
     test_probs = logits_to_probs(test_logits)
     null_probs = logits_to_probs(null_logits)
+    if verbose:
+        print(f"Norm of test logits: {jnp.linalg.norm(test_logits)}")
+        print(f"Norm of null logits: {jnp.linalg.norm(null_logits)}")
+        print(f"Norm of test probs: {jnp.linalg.norm(test_probs)}")
+        print(f"Norm of null probs: {jnp.linalg.norm(null_probs)}")
 
     target_action_add_logits = test_logits[:, add_act_no]
     target_action_null_logits = null_logits[:, add_act_no]
-    # print(f"target action add logits mean: {target_action_add_logits.mean()}")
-    # print(f"target action null logits mean: {target_action_null_logits.mean()}")
+    if verbose:
+        print(f"target action add logits mean: {target_action_add_logits.mean()}")
+        print(f"target action null logits mean: {target_action_null_logits.mean()}")
     target_action_logit_diff = jnp.mean(target_action_add_logits - target_action_null_logits)
 
     nontarget_action_add_logits = test_logits[:, sub_act_no]
     nontarget_action_null_logits = null_logits[:, sub_act_no]
-    # print(f"nontarget action add logits mean: {nontarget_action_add_logits.mean()}")
-    # print(f"nontarget action null logits mean: {nontarget_action_null_logits.mean()}")
+    if verbose:
+        print(f"nontarget action add logits mean: {nontarget_action_add_logits.mean()}")
+        print(f"nontarget action null logits mean: {nontarget_action_null_logits.mean()}")
     nontarget_action_logit_diff = jnp.mean(nontarget_action_add_logits - nontarget_action_null_logits)
 
     target_action_add_probs = test_probs[:, add_act_no]
     target_action_null_probs = null_probs[:, add_act_no]
     target_action_probs_diff = jnp.mean(target_action_add_probs - target_action_null_probs)
-    # print(f"target action add probs mean: {target_action_add_probs.mean()}")
-    # print(f"target action null probs mean: {target_action_null_probs.mean()}")
+    if verbose:
+        print(f"target action add probs mean: {target_action_add_probs.mean()}")
+        print(f"target action null probs mean: {target_action_null_probs.mean()}")
 
     nontarget_action_add_probs = test_probs[:, sub_act_no]
     nontarget_action_null_probs = null_probs[:, sub_act_no]
     nontarget_action_probs_diff = jnp.mean(nontarget_action_add_probs - nontarget_action_null_probs)
-    # print(f"nontarget action add probs mean: {nontarget_action_add_probs.mean()}")
-    # print(f"nontarget action null probs mean: {nontarget_action_null_probs.mean()}")
+    if verbose:
+        print(f"nontarget action add probs mean: {nontarget_action_add_probs.mean()}")
+        print(f"nontarget action null probs mean: {nontarget_action_null_probs.mean()}")
 
     if debug:
         ACTION_MAP = {
@@ -508,7 +536,7 @@ import time
 checkpointer = ocp.StandardCheckpointer()
 rng = jax.random.PRNGKey(0)
 num_envs = 8
-num_steps = 1e5
+num_steps = 1e4
 checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{1524}"
 folder_list = os.listdir(checkpoint_directory)
 params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
@@ -561,7 +589,7 @@ def save_batch(results, modelnos, save_dir):
 
 results = list()
 modelnos = list()
-for modelno in tqdm(range(1525)):
+for modelno in tqdm(range(54, 1525)):
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{modelno}"
     folder_list = os.listdir(checkpoint_directory)
     params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
@@ -609,7 +637,7 @@ for modelno in range(1525):
 
 results = np.array(results)
 # results = np.nan_to_num(results, nan=0.0)
-print(results[:, 0])
+print(results[:, 1])
 # %%
 from matplotlib import pyplot as plt
 save_dir = "/workspace/CraftaxDevinterp/intermediate_data/add_act_8_sub_act_7/time_series"
@@ -617,7 +645,8 @@ plt.plot(results[:, 0], label="control_delta")
 plt.plot(results[:, 1], label="target_delta")
 plt.plot(results[:, 2], label="nontarget_delta")
 plt.legend()
-plt.savefig(f"{save_dir}/results.png")
+# plt.savefig(f"{save_dir}/results.png")
+plt.show()
 plt.close()
 
 # %%
