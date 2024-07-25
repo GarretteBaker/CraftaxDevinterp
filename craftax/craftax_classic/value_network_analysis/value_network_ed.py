@@ -107,7 +107,7 @@ def plot_all_pca_combinations(E, save_dir='pca_plots'):
     plt.savefig(os.path.join(save_dir, 'all_pca_combinations.png'), dpi=300, bbox_inches='tight')
     plt.close()
 
-    print("PCA visualization complete. Plot saved as 'all_pca_combinations.png' in the 'pca_plots' directory.")
+    print(f"PCA visualization complete. Plot saved as 'all_pca_combinations.png' in the '{save_dir}' directory.")
 
 # view pca
 # create plot for all combinations
