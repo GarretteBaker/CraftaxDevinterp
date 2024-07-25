@@ -419,7 +419,11 @@ def test_vector_addition(
     control_obs = obs2[control_obs_indices]
     control_logits_add = vectorized_act_addition(params, control_obs, act_add, layer)
     control_logits_null = vectorized_act_addition(params, control_obs, jnp.zeros_like(act_add), layer)
-    control_diffs = control_logits_add - control_logits_null
+
+    control_probs_add = logits_to_probs(control_logits_add)
+    control_probs_null = logits_to_probs(control_logits_null)
+
+    control_diffs = control_probs_add - control_probs_null
     control_diff = jnp.linalg.norm(control_diffs)
 
     # for control_act_no in control_act_nos:
@@ -588,6 +592,7 @@ jitted_tva = jax.jit(test_vector_addition, static_argnames=("add_act_no", "sub_a
 add_act_no = 8
 sub_act_no = 7
 batch_size = 10
+count_by = 10
 save_dir = f"/workspace/CraftaxDevinterp/intermediate_data/add_act_{add_act_no}_sub_act_{sub_act_no}/time_series"
 os.makedirs(save_dir, exist_ok=True)
 
@@ -597,14 +602,14 @@ def save_batch(results, modelnos, save_dir):
 
 results = list()
 modelnos = list()
-for modelno in tqdm(range(1525)):
+for modelno in tqdm(range(0, 1525, 10)):
     checkpoint_directory = f"/workspace/CraftaxDevinterp/intermediate/{modelno}"
     folder_list = os.listdir(checkpoint_directory)
     params = checkpointer.restore(f"{checkpoint_directory}/{folder_list[0]}")
     r = test_vector_addition(params, obs1, obs2, add_act_no, sub_act_no, 1)
     test_logits, control_diff, target_action_logit_diff, nontarget_action_logit_diff, target_action_probs_diff, nontarget_action_probs_diff, control_diffs = r
     r = np.array([control_diff, target_action_probs_diff, nontarget_action_probs_diff])
-    if modelno % batch_size == 0:
+    if len(modelnos) % batch_size == 0:
         results.append(r)
         modelnos.append(modelno)
         save_batch(results, modelnos, save_dir)
@@ -616,7 +621,7 @@ for modelno in tqdm(range(1525)):
 save_batch(results, modelnos, save_dir)
 
 results = []
-for modelno in range(1525):
+for modelno in range(0, 1525, count_by):
     file_path = f"{save_dir}/{modelno}.npy"
     if os.path.exists(file_path):
         results.append(np.load(file_path))
@@ -624,37 +629,37 @@ for modelno in range(1525):
         print(f"Warning: File not found for model {modelno}")
 
 results = np.array(results)
-
-plt.plot(results[:, 0], label="control_delta")
-plt.plot(results[:, 1], label="target_delta")
-plt.plot(results[:, 2], label="nontarget_delta")
+modelnos = np.arange(0, 1525, count_by)
+plt.plot(modelnos, results[:, 0], label="control_delta")
+plt.plot(modelnos, results[:, 1], label="target_delta")
+plt.plot(modelnos, results[:, 2], label="nontarget_delta")
 plt.legend()
 plt.savefig(f"{save_dir}/results.png")
 plt.close()
 
 #%%
-import numpy as np
-dir = "/workspace/CraftaxDevinterp/intermediate_data/add_act_8_sub_act_7/time_series"
-results = []
-for modelno in range(1525):
-    file_path = f"{dir}/{modelno}.npy"
-    if os.path.exists(file_path):
-        results.append(np.load(file_path))
-    else:
-        print(f"Warning: File not found for model {modelno}")
+# import numpy as np
+# dir = "/workspace/CraftaxDevinterp/intermediate_data/add_act_8_sub_act_7/time_series"
+# results = []
+# for modelno in range(0, 1525):
+#     file_path = f"{dir}/{modelno}.npy"
+#     if os.path.exists(file_path):
+#         results.append(np.load(file_path))
+#     else:
+#         print(f"Warning: File not found for model {modelno}")
 
-results = np.array(results)
-# results = np.nan_to_num(results, nan=0.0)
-print(results[:, 1])
-# %%
-from matplotlib import pyplot as plt
-save_dir = "/workspace/CraftaxDevinterp/intermediate_data/add_act_8_sub_act_7/time_series"
-plt.plot(results[:, 0], label="control_delta")
-plt.plot(results[:, 1], label="target_delta")
-plt.plot(results[:, 2], label="nontarget_delta")
-plt.legend()
-# plt.savefig(f"{save_dir}/results.png")
-plt.show()
-plt.close()
+# results = np.array(results)
+# # results = np.nan_to_num(results, nan=0.0)
+# print(results[:, 1])
+# # %%
+# from matplotlib import pyplot as plt
+# save_dir = "/workspace/CraftaxDevinterp/intermediate_data/add_act_8_sub_act_7/time_series"
+# plt.plot(results[:, 0], label="control_delta")
+# plt.plot(results[:, 1], label="target_delta")
+# plt.plot(results[:, 2], label="nontarget_delta")
+# plt.legend()
+# # plt.savefig(f"{save_dir}/results.png")
+# plt.show()
+# plt.close()
 
-# %%
+# # %%

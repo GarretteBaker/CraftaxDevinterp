@@ -2418,3 +2418,4 @@ for layer_number in range(3):
 # TODO: Do the intervention vectors work better if we instead just *condition* on the model having done the action? Rather
     # than doing as we do here and making a custom minimum change intervention? But then which model? +1 I think conditioning
     # may smooth out the results.
+    # Answer: Not really?
