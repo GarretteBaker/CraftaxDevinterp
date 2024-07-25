@@ -1,3 +1,4 @@
+#%%
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -59,7 +60,7 @@ for modelno in tqdm(range(max_models)):
 pca = PCA(n_components=5)
 pca.fit(A)
 E = pca.transform(A)
-
+#%%
 def plot_all_pca_combinations(E, save_dir='pca_plots'):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -81,14 +82,15 @@ def plot_all_pca_combinations(E, save_dir='pca_plots'):
             col = plot_idx % n_cols
             ax = axes[row, col] if n_rows > 1 else axes[col]
             
-            scatter = ax.scatter(E[:, i], E[:, j], c=range(E.shape[0]), cmap='viridis', s=50)
+            scatter = ax.scatter(E[:, i], E[:, j], c=range(E.shape[0]), cmap='viridis', s=5)
             ax.set_xlabel(f'PCA {i+1}')
             ax.set_ylabel(f'PCA {j+1}')
             ax.set_title(f'PCA {i+1} vs PCA {j+1}')
             
-            # Add model number labels to each point
+            # Add model number labels to every 100th point
             for k, (x, y) in enumerate(zip(E[:, i], E[:, j])):
-                ax.annotate(str(k), (x, y), xytext=(3, 3), textcoords='offset points', fontsize=8)
+                if k % 100 == 0:
+                    ax.annotate(str(k), (x, y), xytext=(3, 3), textcoords='offset points', fontsize=8)
             
             plot_idx += 1
     
@@ -114,3 +116,5 @@ def plot_all_pca_combinations(E, save_dir='pca_plots'):
 # loop over all combinations of pcas, and view them plotted against each other
 # save
 plot_all_pca_combinations(E, save_dir="/workspace/CraftaxDevinterp/craftax/craftax_classic/value_network_analysis")
+
+# %%
