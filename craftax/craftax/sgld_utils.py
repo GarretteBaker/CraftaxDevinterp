@@ -7,7 +7,7 @@ import jax.tree_util as jtree
 import numpy as np
 import optax 
 from typing import NamedTuple
-from llc_utils import param_lp_dist, pack_params, unpack_params
+from craftax.craftax.llc_utils import param_lp_dist, pack_params, unpack_params
 
 def create_minibatches(inputs, targets, batch_size, shuffle=True):
     assert len(inputs) == len(targets)

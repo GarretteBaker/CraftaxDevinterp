@@ -119,7 +119,7 @@ expert_obses, expert_logitses = jit_gen_traj_495(network_params, rng_sgld)
 #%%
 def mse_loss(param, model, inputs, targets):
     predictions, _ = model.apply(param, inputs)
-    predictions = predictions.logits
+    predictions = predictions.logits # TODO: try changing this to probs (also need to change the targets to probs too)
     return jnp.mean((predictions - targets) ** 2)
 
 env = CraftaxSymbolicEnv()

@@ -49,16 +49,43 @@ obses = einops.rearrange(obses, 's e o -> (s e) o')
 # Generate "true" (end-state-policy) a's
 _, true_a = run_network(params, obses)
 
-# loop through each model
+from craftax.craftax.sgld_utils import run_sgld, SGLDConfig
 
-    # find that model's value network estimation on each obs
-    # collect such vectors
+def mse_loss(param, inputs, targets):
+    _, predictions = run_network(param, inputs)
+    return jnp.mean((predictions - targets) ** 2)
+
+loss_fn = jax.jit(
+    lambda param, inputs, targets: mse_loss(param, inputs, targets)
+)
+
+sgld_config = SGLDConfig(
+    epsilon = 1e-4, 
+    gamma = 1e2, 
+    num_steps = 1e2, 
+    num_chains = 1,
+    batch_size = 64
+)
+itemp = 0.01
+num_training_data = obses.shape[0]
 max_models = 1525
-llcs = np.zeros((max_models))
-for modelno in tqdm(range(max_models)):
+count_by = 100
+rng, sgld_rng = jax.random.split(rng)
+llcs = np.zeros((max_models//count_by + 1))
+for i, modelno in tqdm(enumerate(range(0, max_models, count_by))):
     params = load_model(modelno)
-    a = run_network(params, obses)
-    # TODO: calculate llc
-    # TODO: Add llc to llcs
+    loss_trace, _, _ = run_sgld(
+        sgld_rng, 
+        loss_fn, 
+        sgld_config, 
+        params, 
+        obses, 
+        true_a, 
+        itemp=itemp
+    )
+    init_loss = loss_fn(params, obses, true_a)
+    lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
 
-# TODO: visualize llcs
+    llcs[i] = lambdahat
+plt.plot(llcs)
+# %%
