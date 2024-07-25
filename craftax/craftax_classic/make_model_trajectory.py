@@ -10,29 +10,18 @@ from craftax.models.actor_critic import (
 )
 from craftax.craftax_classic.envs.craftax_symbolic_env import CraftaxClassicSymbolicEnv
 
-
-class Tracker(NamedTuple):
-    block_placements: jnp.ndarray
-    block_mining: jnp.ndarray
-    player_location: jnp.ndarray
-    player_movement: jnp.ndarray
-    # revealed_blocks: jnp.ndarray
-    doings: jnp.ndarray
-    mob_kills: jnp.ndarray
-    mob_attacks: jnp.ndarray
-    time: jnp.ndarray
-
-
-def generate_trajectory(network_params, rng, num_envs, num_steps):
+def generate_trajectory(network_params, rng, num_envs, num_steps, log_obses = False):
     env = CraftaxClassicSymbolicEnv()
     env = AutoResetEnvWrapper(env)
     env = BatchEnvWrapper(env, num_envs)
     env_params = env.default_params
-    network = ActorCritic(env.action_space(env_params).n, 512, activation='relu')
+    network = ActorCritic(env.action_space(env_params).n, 512, activation="relu")
 
     class Transition(NamedTuple):
-        tracking: jnp.ndarray
+        logits: jnp.ndarray
+        probs: jnp.ndarray
         done: jnp.ndarray
+        obs: jnp.ndarray = None
 
     # COLLECT TRAJECTORIES
     def _env_step(runner_state, unused):
@@ -45,6 +34,8 @@ def generate_trajectory(network_params, rng, num_envs, num_steps):
         # SELECT ACTION
         rng, _rng = jax.random.split(rng)
         pi, _ = network.apply(network_params, last_obs)
+        logits = pi.logits
+        probs = pi.probs
         action = pi.sample(seed=_rng)
 
         # STEP ENV
@@ -53,11 +44,11 @@ def generate_trajectory(network_params, rng, num_envs, num_steps):
             _rng, past_state, action, env_params
         )
 
-        tracker = past_state
-
         transition = Transition(
-            tracking = tracker,
-            done = done
+            logits = logits,
+            probs = probs,
+            done = done,
+            obs = last_obs if log_obses else None
         )
         runner_state = (
             env_state,
@@ -78,5 +69,5 @@ def generate_trajectory(network_params, rng, num_envs, num_steps):
     runner_state, traj_batch = jax.lax.scan(
         _env_step, runner_state, None, num_steps
     )
-    return traj_batch.tracking, traj_batch.done
-jit_gen_traj = jax.jit(generate_trajectory, static_argnames=["num_envs", "num_steps"])
+    return (traj_batch.logits, traj_batch.probs, traj_batch.obs), traj_batch.done
+jit_gen_traj = jax.jit(generate_trajectory, static_argnames=("num_envs", "num_steps", "log_obses"))
