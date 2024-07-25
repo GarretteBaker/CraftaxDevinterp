@@ -18,5 +18,6 @@ imageio
 dm-haiku
 seaborn
 plotly==5.22.0
+scikit-learn
 
 --find-links https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
