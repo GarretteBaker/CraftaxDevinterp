@@ -53,12 +53,49 @@ _, true_a = run_network(params, obses)
 
     # find that model's value network estimation on each obs
     # collect such vectors
-max_models = 1525
-llcs = np.zeros((max_models))
-for modelno in tqdm(range(max_models)):
-    params = load_model(modelno)
-    a = run_network(params, obses)
-    # TODO: calculate llc
-    # TODO: Add llc to llcs
+from craftax.craftax.sgld_utils import run_sgld, SGLDConfig
 
-# TODO: visualize llcs
+def mse_loss(param, inputs, targets):
+    _, predictions = run_network(param, inputs)
+    return jnp.mean((predictions - targets) ** 2)
+
+loss_fn = jax.jit(
+    lambda param, inputs, targets: mse_loss(param, inputs, targets)
+)
+num_training_data = obses.shape[0]
+
+rng, sgld_rng = jax.random.split(rng)
+itemp = 0.02
+sgld_config = SGLDConfig(
+    epsilon = 1e-5, 
+    gamma = 1e3, 
+    num_steps = 1e3, 
+    num_chains = 1,
+    batch_size = 64
+)
+
+max_models = 1525
+count_by = 100
+llcs = np.zeros((max_models//count_by + 1))
+pbar = tqdm(total=max_models//count_by + 1, desc="Model llc progress")
+for i, modelno in tqdm(enumerate(range(0, max_models, count_by))):
+    params = load_model(modelno)
+
+    loss_trace, _, _ = run_sgld(
+        sgld_rng, 
+        loss_fn, 
+        sgld_config, 
+        params, 
+        obses, 
+        true_a, 
+        itemp=itemp
+    )
+    init_loss = loss_fn(params, obses, true_a)
+    lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
+    llcs[i] = lambdahat
+    pbar.update(1)
+
+# visualize llcs
+plt.plot(llcs)
+plt.savefig("/workspace/CraftaxDevinterp/craftax/craftax_classic/value_network_analysis/llcs_over_time.png")
+plt.close()
