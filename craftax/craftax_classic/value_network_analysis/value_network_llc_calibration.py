@@ -70,24 +70,24 @@ sgld_config = SGLDConfig(
     num_chains = 1,
     batch_size = 64
 )
-loss_trace, _, _ = run_sgld(
-    sgld_rng, 
-    loss_fn, 
-    sgld_config, 
-    params, 
-    obses, 
-    true_a, 
-    itemp=itemp
-)
-init_loss = loss_fn(params, obses, true_a)
-lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
+# loss_trace, _, _ = run_sgld(
+#     sgld_rng, 
+#     loss_fn, 
+#     sgld_config, 
+#     params, 
+#     obses, 
+#     true_a, 
+#     itemp=itemp
+# )
+# init_loss = loss_fn(params, obses, true_a)
+# lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
 
-plt.plot(loss_trace)
+# plt.plot(loss_trace)
 #%%
 from itertools import product
 
 
-def sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False):
+def sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False, filename="llc_traces.png"):
     def run_search():
         if debug:
             epsilon_range = [1e-4]
@@ -97,8 +97,8 @@ def sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False):
         else:
             epsilon_range = [1e-5, 1e-4, 1e-3]
             gamma_range = [1e1, 1e2, 1e3]
-            num_steps_range = [1e2, 1e3, 1e4]
-            itemp_range = [0.01, 0.02, 0.05]
+            num_steps_range = [1e3, 1e4]
+            itemp_range = [1.0, 0.1, 0.01, 0.001, 1e-3]
 
         num_training_data = obses.shape[0]
         results = []
@@ -124,7 +124,7 @@ def sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False):
                 true_a,
                 itemp=itemp
             )
-            mala_acceptance = np.mean(mala)
+            mala_acceptance = np.mean([e[1] for e in mala])
 
             init_loss = loss_fn(params, obses, true_a)
             lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
@@ -146,7 +146,7 @@ def sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False):
         pbar.close()
         return results
 
-    def save_results(results):
+    def save_results(results, filename):
         num_param_plots = 4
         num_loss_plots = len(results)
         total_plots = num_param_plots + num_loss_plots
@@ -173,7 +173,7 @@ def sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False):
             ax = fig.add_subplot(gs[2 + idx // 4, idx % 4])
             ax.plot(result['loss_trace'], label='Loss Trace')
             ax.axhline(y=result['init_loss'], color='r', linestyle='--', label='Initial Loss')
-            ax.set_title(f"ε={result['epsilon']}, γ={result['gamma']},\nn_steps={result['num_steps']}, itemp={result['itemp']}\nMALA acc: {result['mala_acceptance']:.4f}")
+            ax.set_title(f"ε={result['epsilon']}, γ={result['gamma']},\nn_steps={result['num_steps']}, itemp={result['itemp']}\nMALA acc: {result['mala_acceptance']:.4f}, llc={result['lambdahat']}")
             ax.set_xlabel('Steps')
             ax.set_ylabel('Loss')
             ax.legend()
@@ -186,7 +186,7 @@ def sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False):
         save_dir = '/workspace/CraftaxDevinterp/craftax/craftax_classic/value_network_analysis/'
         os.makedirs(save_dir, exist_ok=True)
         
-        filename = 'debugging_llc_traces.png' if debug else 'llc_traces.png'
+        filename = 'debugging_llc_traces.png' if debug else filename
         filepath = os.path.join(save_dir, filename)
         plt.savefig(filepath, dpi=300, bbox_inches='tight')
         plt.close(fig)
@@ -194,11 +194,16 @@ def sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False):
         print(f"Plots saved to {filepath}")
 
     results = run_search()
-    save_results(results)
+    save_results(results, filename)
 
     return results
 
-results = sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False)
+print(f"Calibrating model number 1524")
+results = sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False, filename="llc_traces_1524.png")
+
+print("calibrating model number 100")
+params = load_model(100)
+results = sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False, filename="llc_traces_0100.png")
 
 #%%
 

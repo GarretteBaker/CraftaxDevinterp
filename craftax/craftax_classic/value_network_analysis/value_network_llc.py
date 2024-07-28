@@ -64,25 +64,24 @@ loss_fn = jax.jit(
 )
 num_training_data = obses.shape[0]
 
-rng, sgld_rng = jax.random.split(rng)
-itemp = 0.02
+rng, sgld_loop_rng = jax.random.split(rng)
+itemp = 0.001
 sgld_config = SGLDConfig(
     epsilon = 1e-5, 
-    gamma = 1e3, 
-    num_steps = 1e3, 
-    num_chains = 1,
+    gamma = 10, 
+    num_steps = 1e4, 
+    num_chains = 10,
     batch_size = 64
 )
 
 max_models = 1525
-count_by = 100
+count_by = 1
 llcs = np.zeros((max_models//count_by + 1))
 pbar = tqdm(total=max_models//count_by + 1, desc="Model llc progress")
-for i, modelno in tqdm(enumerate(range(0, max_models, count_by))):
-    params = load_model(modelno)
 
+def find_lambdahat(rng, params):
     loss_trace, _, _ = run_sgld(
-        sgld_rng, 
+        rng, 
         loss_fn, 
         sgld_config, 
         params, 
@@ -92,10 +91,35 @@ for i, modelno in tqdm(enumerate(range(0, max_models, count_by))):
     )
     init_loss = loss_fn(params, obses, true_a)
     lambdahat = float(np.mean(loss_trace) - init_loss) * num_training_data * itemp
+    return lambdahat
+
+for i, modelno in tqdm(enumerate(range(0, max_models, count_by))):
+    params = load_model(modelno)
+    lambdahat = 0
+    rng = sgld_loop_rng
+    for i in range(sgld_config.num_chains):
+        rng, sgld_rng = jax.random.split(rng)
+        lambdahat += find_lambdahat(sgld_rng, params)
+    lambdahat /= sgld_config.num_chains
     llcs[i] = lambdahat
     pbar.update(1)
 
 # visualize llcs
 plt.plot(llcs)
-plt.savefig("/workspace/CraftaxDevinterp/craftax/craftax_classic/value_network_analysis/llcs_over_time.png")
+plt.savefig(f"/workspace/CraftaxDevinterp/craftax/craftax_classic/value_network_analysis/llcs_over_time_countby_{count_by}.png")
 plt.close()
+
+np.save(f"/workspace/CraftaxDevinterp/craftax/craftax_classic/value_network_analysis/llcs_over_time_countby_{count_by}.np", llcs)
+
+#%%
+import numpy as np
+import matplotlib.pyplot as plt
+
+count_by = 1
+llcs = np.load(f"/workspace/CraftaxDevinterp/craftax/craftax_classic/value_network_analysis/llcs_over_time_countby_{count_by}.np.npy")
+
+plt.plot(llcs[:-1])
+plt.savefig(f"/workspace/CraftaxDevinterp/craftax/craftax_classic/value_network_analysis/llcs_over_time_countby_{count_by}.png")
+plt.close()
+
+# %%
