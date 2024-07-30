@@ -7,7 +7,7 @@ from craftax.craftax_classic.make_model_trajectory import jit_gen_traj
 import orbax.checkpoint as ocp
 import os
 import einops
-from craftax.models.actor_critic import ActorCritic
+from craftax.models.actor_critic import ActorCritic, LinearActorCritic
 import time
 from tqdm import tqdm
 from craftax.craftax_classic.envs.craftax_symbolic_env import CraftaxClassicSymbolicEnv
@@ -26,7 +26,8 @@ env_params = env.default_params
 rng, env_rng = jax.random.split(rng)
 obsv, env_state = env.reset(env_rng, env_params)
 
-network = ActorCritic(17, 512, activation="relu")
+network = LinearActorCritic(17, 512, activation="relu")
+# network = LinearActorCritic(17, 512)
 run_network = jax.jit(network.apply)
 
 rng, init_rng = jax.random.split(rng)
@@ -70,12 +71,12 @@ sgld_config = SGLDConfig(
     epsilon = 1e-5, 
     gamma = 10, 
     num_steps = 1e4, 
-    num_chains = 10,
-    batch_size = 64
+    num_chains = 1,
+    batch_size = 1024
 )
 
 max_models = 1525
-count_by = 1
+count_by = 100
 llcs = np.zeros((max_models//count_by + 1))
 pbar = tqdm(total=max_models//count_by + 1, desc="Model llc progress")
 

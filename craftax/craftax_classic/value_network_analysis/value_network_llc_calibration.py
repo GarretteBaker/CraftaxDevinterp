@@ -95,10 +95,10 @@ def sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False, filename
             num_steps_range = [1e2]
             itemp_range = [0.02]
         else:
-            epsilon_range = [1e-5, 1e-4, 1e-3]
-            gamma_range = [1e1, 1e2, 1e3]
-            num_steps_range = [1e3, 1e4]
-            itemp_range = [1.0, 0.1, 0.01, 0.001, 1e-3]
+            epsilon_range = [1e-5, 1e-4]
+            gamma_range = [10, 1e2, 1e3, 1e4]
+            num_steps_range = [1e3]
+            itemp_range = [1e-2, 1e-3, 1e-4, 1e-5]
 
         num_training_data = obses.shape[0]
         results = []
@@ -112,7 +112,7 @@ def sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False, filename
                 gamma=gamma,
                 num_steps=int(num_steps),
                 num_chains=1,
-                batch_size=64
+                batch_size=1024
             )
 
             loss_trace, _, mala = run_sgld(
@@ -198,12 +198,13 @@ def sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False, filename
 
     return results
 
+mod = "large_batch"
 print(f"Calibrating model number 1524")
-results = sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False, filename="llc_traces_1524.png")
+results = sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False, filename="{mod}llc_traces_1524.png")
 
 print("calibrating model number 100")
 params = load_model(100)
-results = sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False, filename="llc_traces_0100.png")
+results = sgld_parameter_search(sgld_rng, params, obses, true_a, debug=False, filename="{mod}llc_traces_0010.png")
 
 #%%
 
