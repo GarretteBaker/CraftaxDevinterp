@@ -129,8 +129,8 @@ def loss(params, traj_batch, targets):
     pi, value = network.apply(params, traj_batch)
     logits = pi.logits # perhaps change this to probs
     
-    pi_targets = targets[..., 0]
-    value_targets = targets[..., 1]
+    pi_targets = targets[..., :-1]
+    value_targets = targets[..., -1]
 
     pi_loss = jnp.linalg.norm(logits - pi_targets)**2
     value_loss = jnp.linalg.norm(value - value_targets)**2
@@ -226,13 +226,16 @@ def find_lambdahat(rng, params, itemp, epsilon, gamma, num_steps, num_chains, ba
     traj_batch_vect = einops.rearrange(traj_batch_vect, "e s d -> (e s) d")
     
     pi_target, value_target = run_network(params, traj_batch_vect)
+    pi_target = pi_target.logits # remember to change if what we use in the loss changes too
     targets = jnp.concatenate(
         [
             pi_target, 
             jnp.expand_dims(
-                value_target
+                value_target, 
+                axis = -1
             )
-        ]
+        ], 
+        axis=-1
     )
 
     loss_trace, _, mala = run_sgld(

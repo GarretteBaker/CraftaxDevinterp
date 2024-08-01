@@ -269,3 +269,11 @@ plt.savefig(f"{folder}/llcs_over_time_countby.png")
 plt.close()
 
 np.save(f"{folder}/llcs_over_time_countby", llcs)
+
+# TODO: make behavioral
+# TODO: change hyperparams to:
+# itemp = 0.01
+# eps = 1e-6
+# gam = 1e3
+# num_step = 1e4
+# batch = 64
