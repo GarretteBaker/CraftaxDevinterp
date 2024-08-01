@@ -365,7 +365,7 @@ def calibrate(modelno):
     os.makedirs(folder, exist_ok=True)
 
     plt.tight_layout()
-    plt.savefig(f"{folder}/{modelno}.png")
+    plt.savefig(f"{folder}/{modelno}_policy_loss.png")
     plt.close()
 
 print(f"Calibrating 100")
