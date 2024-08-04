@@ -127,7 +127,7 @@ def _calculate_gae(traj_batch, last_val):
 
 def loss(params, traj_batch, targets):
     pi, value = network.apply(params, traj_batch)
-    logits = pi.logits # perhaps change this to probs
+    logits = pi.probs # perhaps change this to probs
     
     pi_targets = targets[..., :-1]
     value_targets = targets[..., -1]
@@ -226,7 +226,7 @@ def find_lambdahat(rng, params, itemp, epsilon, gamma, num_steps, num_chains, ba
     traj_batch_vect = einops.rearrange(traj_batch_vect, "e s d -> (e s) d")
     
     pi_target, value_target = run_network(params, traj_batch_vect)
-    pi_target = pi_target.logits # remember to change if what we use in the loss changes too
+    pi_target = pi_target.probs # remember to change if what we use in the loss changes too
     targets = jnp.concatenate(
         [
             pi_target, 
@@ -350,7 +350,7 @@ def calibrate(modelno):
         axes[i].set_title(wrapped_title, fontsize=10)
         pbar.update(1)
 
-    folder = "/workspace/CraftaxDevinterp/craftax/craftax_classic/policy_network_analysis/llc_calibration"
+    folder = "/workspace/CraftaxDevinterp/craftax/craftax_classic/policy_network_analysis/llc_calibration/probs_version"
     os.makedirs(folder, exist_ok=True)
 
     plt.tight_layout()

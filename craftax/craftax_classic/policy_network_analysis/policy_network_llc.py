@@ -125,7 +125,7 @@ def _calculate_gae(traj_batch, last_val):
 
 def loss(params, traj_batch, targets):
     pi, value = network.apply(params, traj_batch)
-    logits = pi.logits # perhaps change this to probs
+    logits = pi.probs # perhaps change this to probs
     
     pi_targets = targets[..., :-1]
     value_targets = targets[..., -1]
@@ -223,7 +223,7 @@ def find_lambdahat(rng, params, itemp, epsilon, gamma, num_steps, num_chains, ba
     traj_batch_vect = einops.rearrange(traj_batch_vect, "e s d -> (e s) d")
     
     pi_target, value_target = run_network(params, traj_batch_vect)
-    pi_target = pi_target.logits # remember to change if what we use in the loss changes too
+    pi_target = pi_target.probs # remember to change if what we use in the loss changes too
     targets = jnp.concatenate(
         [
             pi_target, 
@@ -281,7 +281,7 @@ for i, modelno in tqdm(enumerate(range(min_models, max_models, count_by))):
     llcs[i] = lambdahat
     pbar.update(1)
 
-folder = f"/workspace/CraftaxDevinterp/craftax/craftax_classic/policy_network_analysis/temp_{itemp}/eps_{sgld_config.epsilon}/gamma_{sgld_config.gamma}/num_steps_{sgld_config.num_steps}/num_chains_{sgld_config.num_chains}/batch_{sgld_config.batch_size}/min_models_{min_models}/max_models_{max_models}/countby_{count_by}"
+folder = f"/workspace/CraftaxDevinterp/craftax/craftax_classic/policy_network_analysis/probs_version/temp_{itemp}/eps_{sgld_config.epsilon}/gamma_{sgld_config.gamma}/num_steps_{sgld_config.num_steps}/num_chains_{sgld_config.num_chains}/batch_{sgld_config.batch_size}/min_models_{min_models}/max_models_{max_models}/countby_{count_by}"
 os.makedirs(folder, exist_ok=True)
 
 # visualize llcs
